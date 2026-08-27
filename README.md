@@ -98,9 +98,6 @@ bitbake fip-stm32mp
 
 ## 注意事项
 
-- 构建目录使用**独立**的 `DL_DIR` / `SSTATE_DIR`（见
-  `build-openstlinuxweston-stm32mp257-atk/conf/site.conf`），不与 `stm32mp2`
-  构建路径共享缓存。
 - 不要在各层内 `git pull`；`meta-atk-mp257` 三个 fork 层已脱离 repo 管理。
 - 若执行 `envsetup.sh --reset` 后丢失层引用，需手动重新加入
   `BBLAYERS =+ ".../layers/meta-atk-mp257"`。
