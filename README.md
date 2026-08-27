@@ -4,9 +4,9 @@
 Yocto 构建层集合，基于 OpenSTLinux Distribution Package
 （`openstlinux-6.6-yocto-scarthgap-mpu-v26.06.10`，OpenSTLinux v6.2.1 / Yocto Scarthgap / OE-core 5.x）。
 
-本仓库是 `repo` 检出环境中 `layers/` 目录的快照，其中 **`meta-atk-mp257/`** 为
-本项目的板级定制层（已脱离 repo 管理，独立纳入 git），其余 ST 官方层以工作树
-`.git` 符号链接形式保留原 repo 检出状态。
+本仓库是 `repo` 检出环境中 `layers/` 目录的快照，所有层的**内容均以普通文件
+纳入 git 跟踪**（含 ST 官方层 `meta-st/`、`meta-openembedded/`、
+`openembedded-core/`），克隆后即可直接使用，无需 `repo sync` 或子模块更新。
 
 ## 目录结构
 
@@ -21,9 +21,9 @@ layers/
 │  │  └─ recipes-extended/external-dt/           # ATK boot 链设备树 + external-dt_%.bbappend
 │  ├─ meta-atk-mp257-stm32mp-addons/ # meta-st-stm32mp-addons fork（collection: stm-st-stm32mp-mx）
 │  └─ meta-atk-mp257-openstlinux/    # meta-st-openstlinux fork（collection: st-openstlinux）
-├─ meta-st/                          # ST 官方层（repo 检出）
-├─ meta-openembedded/                # meta-oe / meta-python 等（repo 检出）
-└─ openembedded-core/                # OE-core（无 poky）（repo 检出）
+├─ meta-st/                          # ST 官方层（内容随仓库跟踪）
+├─ meta-openembedded/                # meta-oe / meta-python 等（内容随仓库跟踪）
+└─ openembedded-core/                # OE-core（无 poky）（内容随仓库跟踪）
 ```
 
 > fork 后的各层 `conf/layer.conf` 中 `BBFILE_COLLECTIONS` / `BBFILE_PRIORITY` /
@@ -98,7 +98,8 @@ bitbake fip-stm32mp
 
 ## 注意事项
 
-- 不要在各层内 `git pull`；`meta-atk-mp257` 三个 fork 层已脱离 repo 管理。
+- 不要在各层内 `git pull`；所有层内容已随本仓库快照提交，脱离 repo/上游管理，
+  如需从上游更新需手动替换对应层目录。
 - 若执行 `envsetup.sh --reset` 后丢失层引用，需手动重新加入
   `BBLAYERS =+ ".../layers/meta-atk-mp257"`。
 - `conf/local.conf` 沿用 ST 默认覆盖：`PACKAGE_CLASSES = "package_deb"`、
