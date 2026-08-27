@@ -1,7 +1,7 @@
 #@TYPE: Machine
 #@NAME: stm32mp25-eval-mx
 #@DESCRIPTION: [STM32CubeMX-EXAMPLE] STM32MP257f-EV board ONLY with Trusted boot and SDcard support
-#@NEEDED_BSPLAYERS: atk-mp257/meta-openembedded/meta-oe layers/meta-openembedded/meta-python
+#@NEEDED_BSPLAYERS: atk-mp257/meta-openembedded/meta-oe atk-mp257/meta-openembedded/meta-python
 
 ###########################################################################
 #
