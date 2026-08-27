@@ -9,6 +9,10 @@ Yocto 构建层集合，基于 OpenSTLinux Distribution Package
 `openembedded-core/`），克隆后即可直接使用，无需 `repo sync` 或子模块更新。
 克隆得到的顶层目录名为 `atk-mp257`。
 
+> **注意**：envsetup 通过相对路径 `atk-mp257/meta-atk-mp257/...` 定位层，对
+> 克隆目录名是**硬依赖**。请保持目录名为 `atk-mp257`（`git clone .../atk-mp257.git`
+> 的默认目录名即满足），改名会导致 `source envsetup.sh` 找不到层。
+
 ## 目录结构
 
 ```text
@@ -101,10 +105,14 @@ bitbake fip-stm32mp
 
 - 不要在各层内 `git pull`；所有层内容已随本仓库快照提交，脱离 repo/上游管理，
   如需从上游更新需手动替换对应层目录。
-- 若执行 `envsetup.sh --reset` 后丢失层引用，需手动重新加入
-  `BBLAYERS =+ ".../atk-mp257/meta-atk-mp257"`。
+- `conf/` 完全由 envsetup 从模板生成（`--reset` 会重建，含 atk 各层引用），
+  不要手工维护 bblayers.conf；如确需自定义，请在 `conf/local.conf` / `conf/site.conf` 追加。
+- 首次构建无共享 sstate 缓存，需从 ST 源码镜像重新下载（约 10GB+）并全量编译，
+  耗时较长，属正常现象；产物与缓存均在 `build-openstlinuxweston-stm32mp257-atk/` 内。
 - `conf/local.conf` 沿用 ST 默认覆盖：`PACKAGE_CLASSES = "package_deb"`、
   `INHERIT += "rm_work buildhistory"`、`PRSERV_HOST = "localhost:0"`。
+- GPU/多媒体（Vivante）等 EULA 受限特性需 `ACCEPT_EULA_stm32mp257-atk = "1"`，
+  交互式 envsetup 会提示接受；非交互式用 `EULA_stm32mp257atk=1` 预接受。
 
 ## 参考
 
