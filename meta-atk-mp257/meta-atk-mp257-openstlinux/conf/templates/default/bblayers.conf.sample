@@ -11,34 +11,34 @@ OEROOT := "${@os.path.abspath(os.path.dirname(d.getVar('FILE')) + '/../..')}"
 #
 OPENEMBEDDED = "${OPENEMBEDDED_NON_REMOVABLE}"
 
-OPENEMBEDDED_NON_REMOVABLE = "${OEROOT}/layers/openembedded-core/meta"
+OPENEMBEDDED_NON_REMOVABLE = "${OEROOT}/atk-mp257/openembedded-core/meta"
 
 POKY  = "${POKY_NON_REMOVABLE}"
-POKY += "${OEROOT}/layers/poky/meta-yocto-bsp"
+POKY += "${OEROOT}/atk-mp257/poky/meta-yocto-bsp"
 
-POKY_NON_REMOVABLE  = "${OEROOT}/layers/poky/meta"
+POKY_NON_REMOVABLE  = "${OEROOT}/atk-mp257/poky/meta"
 
 #--------------------------
 #
 BASELAYERS ?= " \
-    ${OEROOT}/layers/meta-openembedded/meta-gnome \
-    ${OEROOT}/layers/meta-openembedded/meta-multimedia \
-    ${OEROOT}/layers/meta-openembedded/meta-networking \
-    ${OEROOT}/layers/meta-openembedded/meta-webserver \
+    ${OEROOT}/atk-mp257/meta-openembedded/meta-gnome \
+    ${OEROOT}/atk-mp257/meta-openembedded/meta-multimedia \
+    ${OEROOT}/atk-mp257/meta-openembedded/meta-networking \
+    ${OEROOT}/atk-mp257/meta-openembedded/meta-webserver \
 "
 
 BBLAYERS_NON_REMOVABLE ?= " \
-    ${@'${OPENEMBEDDED_NON_REMOVABLE}' if os.path.isfile('${OEROOT}/layers/openembedded-core/meta/conf/layer.conf') else '${POKY_NON_REMOVABLE}'} \
+    ${@'${OPENEMBEDDED_NON_REMOVABLE}' if os.path.isfile('${OEROOT}/atk-mp257/openembedded-core/meta/conf/layer.conf') else '${POKY_NON_REMOVABLE}'} \
   "
 
 BSPLAYER ?= " \
-    ${@'${OEROOT}/layers/meta-atk-mp257/meta-atk-mp257-stm32mp' if os.path.isfile('${OEROOT}/layers/meta-atk-mp257/meta-atk-mp257-stm32mp/conf/layer.conf') else ''} \
+    ${@'${OEROOT}/atk-mp257/meta-atk-mp257/meta-atk-mp257-stm32mp' if os.path.isfile('${OEROOT}/atk-mp257/meta-atk-mp257/meta-atk-mp257-stm32mp/conf/layer.conf') else ''} \
     "
 
-ADDONSLAYERS += "${@'${OEROOT}/layers/meta-atk-mp257/meta-atk-mp257-stm32mp-addons' if os.path.isfile('${OEROOT}/layers/meta-atk-mp257/meta-atk-mp257-stm32mp-addons/conf/layer.conf') else ''}"
+ADDONSLAYERS += "${@'${OEROOT}/atk-mp257/meta-atk-mp257/meta-atk-mp257-stm32mp-addons' if os.path.isfile('${OEROOT}/atk-mp257/meta-atk-mp257/meta-atk-mp257-stm32mp-addons/conf/layer.conf') else ''}"
 
 # specific to framework
-FRAMEWORKLAYERS += "${@'${OEROOT}/layers/meta-atk-mp257/meta-atk-mp257-openstlinux' if os.path.isfile('${OEROOT}/layers/meta-atk-mp257/meta-atk-mp257-openstlinux/conf/layer.conf') else ''}"
+FRAMEWORKLAYERS += "${@'${OEROOT}/atk-mp257/meta-atk-mp257/meta-atk-mp257-openstlinux' if os.path.isfile('${OEROOT}/atk-mp257/meta-atk-mp257/meta-atk-mp257-openstlinux/conf/layer.conf') else ''}"
 
 # add BSP layer
 BBLAYERS += " \
@@ -46,5 +46,5 @@ BBLAYERS += " \
     ${BSPLAYER} \
     ${ADDONSLAYERS} \
     ${FRAMEWORKLAYERS} \
-    ${@'${OPENEMBEDDED}' if os.path.isfile('${OEROOT}/layers/openembedded-core/meta/conf/layer.conf') else '${POKY}'} \
+    ${@'${OPENEMBEDDED}' if os.path.isfile('${OEROOT}/atk-mp257/openembedded-core/meta/conf/layer.conf') else '${POKY}'} \
     "

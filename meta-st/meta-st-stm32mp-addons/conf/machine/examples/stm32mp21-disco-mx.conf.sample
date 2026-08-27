@@ -1,7 +1,7 @@
 #@TYPE: Machine
 #@NAME: stm32mp21-disco-mx
 #@DESCRIPTION: [STM32CubeMX-EXAMPLE] STM32MP215f-DK board ONLY with Optee boot and SDcard support
-#@NEEDED_BSPLAYERS: layers/meta-openembedded/meta-oe layers/meta-openembedded/meta-python
+#@NEEDED_BSPLAYERS: atk-mp257/meta-openembedded/meta-oe layers/meta-openembedded/meta-python
 
 ###########################################################################
 #

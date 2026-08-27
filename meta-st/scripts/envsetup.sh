@@ -16,7 +16,7 @@ _SUPPORTED_UBUNTU_RELEASE="20.04 22.04 24.04"
 # Set default layer root
 #
 if [ -z "$META_LAYER_ROOT" ]; then
-    _META_LAYER_ROOT=layers/meta-st
+    _META_LAYER_ROOT=atk-mp257/meta-st
 else
     _META_LAYER_ROOT=$META_LAYER_ROOT
 fi
@@ -1335,7 +1335,7 @@ _verify_env() {
     # check that we are where we think we are!
     local oe_tmp_pwd=$(pwd)
     # need to take care of build system available
-    if [[ ! -d $oe_tmp_pwd/layers/openembedded-core ]] && [[ ! -d $oe_tmp_pwd/layers/poky ]]; then
+    if [[ ! -d $oe_tmp_pwd/atk-mp257/openembedded-core ]] && [[ ! -d $oe_tmp_pwd/atk-mp257/poky ]]; then
         echo "PLEASE launch the envsetup script at root tree of your oe sdk"
         echo ""
         local oe_tmp_root=$oe_tmp_pwd
@@ -1346,7 +1346,7 @@ _verify_env() {
                 echo "[WARNING]: you try to launch the script outside oe sdk tree"
                 break;
             fi
-            if [[ -d $oe_tmp_root/layers/openembedded-core ]] || [[ -d $oe_tmp_root/layers/poky ]]; then
+            if [[ -d $oe_tmp_root/atk-mp257/openembedded-core ]] || [[ -d $oe_tmp_root/atk-mp257/poky ]]; then
                 echo "Normally at this location: $oe_tmp_root"
                 break;
             fi
@@ -1357,8 +1357,8 @@ _verify_env() {
         return
     else
         # Fix build system to use for init: default would be openembedded-core one
-        [ -d $oe_tmp_pwd/layers/poky ] && _BUILDSYSTEM=layers/poky
-        [ -d $oe_tmp_pwd/layers/openembedded-core ] && _BUILDSYSTEM=layers/openembedded-core
+        [ -d $oe_tmp_pwd/atk-mp257/poky ] && _BUILDSYSTEM=atk-mp257/poky
+        [ -d $oe_tmp_pwd/atk-mp257/openembedded-core ] && _BUILDSYSTEM=atk-mp257/openembedded-core
     fi
     if [[ "$__resultvar" ]]; then
         eval $__resultvar="NOERROR"
