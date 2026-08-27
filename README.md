@@ -4,14 +4,15 @@
 Yocto 构建层集合，基于 OpenSTLinux Distribution Package
 （`openstlinux-6.6-yocto-scarthgap-mpu-v26.06.10`，OpenSTLinux v6.2.1 / Yocto Scarthgap / OE-core 5.x）。
 
-本仓库是 `repo` 检出环境中 `layers/` 目录的快照，所有层的**内容均以普通文件
+本仓库是 `repo` 检出环境中层目录的快照，所有层的**内容均以普通文件
 纳入 git 跟踪**（含 ST 官方层 `meta-st/`、`meta-openembedded/`、
 `openembedded-core/`），克隆后即可直接使用，无需 `repo sync` 或子模块更新。
+克隆得到的顶层目录名为 `atk-mp257`。
 
 ## 目录结构
 
 ```text
-layers/
+atk-mp257/
 ├─ README.md                         # 本文件
 ├─ meta-atk-mp257/                   # 项目定制层集合（本项目核心，独立 git 跟踪）
 │  ├─ scripts/                       # 从 meta-st/scripts fork，_META_LAYER_ROOT 指向本集合
@@ -63,21 +64,21 @@ layers/
 
 ## 构建
 
-主机要求 Ubuntu 20.04/22.04/24.04 且非 root。在 Distribution Package 根目录
-**source**（不可直接执行）fork 后的 envsetup：
+主机要求 Ubuntu 20.04/22.04/24.04 且非 root。在包含本仓库克隆（目录名
+`atk-mp257`）的父目录下 **source**（不可直接执行）fork 后的 envsetup：
 
 ```bash
 cd /path/to/Distribution-Package
 
 # 交互式
-source layers/meta-atk-mp257/scripts/envsetup.sh build-openstlinuxweston-stm32mp257-atk
+source atk-mp257/meta-atk-mp257/scripts/envsetup.sh build-openstlinuxweston-stm32mp257-atk
 
 # 非交互式（首次 INIT 推荐，EULA 通过变量预接受）
 DISTRO=openstlinux-weston \
 MACHINE=stm32mp257-atk \
 BUILD_DIR=build-openstlinuxweston-stm32mp257-atk \
 EULA_stm32mp257atk=1 \
-source layers/meta-atk-mp257/scripts/envsetup.sh --no-ui
+source atk-mp257/meta-atk-mp257/scripts/envsetup.sh --no-ui
 
 # 编译镜像
 bitbake st-image-weston
@@ -86,7 +87,7 @@ bitbake st-image-weston
 仅重建 boot 链（改动 external-dt 之后）：
 
 ```bash
-source layers/openembedded-core/oe-init-build-env build-openstlinuxweston-stm32mp257-atk
+source atk-mp257/openembedded-core/oe-init-build-env build-openstlinuxweston-stm32mp257-atk
 bitbake external-dt -c cleansstate
 bitbake external-dt
 bitbake optee-os-stm32mp
@@ -101,7 +102,7 @@ bitbake fip-stm32mp
 - 不要在各层内 `git pull`；所有层内容已随本仓库快照提交，脱离 repo/上游管理，
   如需从上游更新需手动替换对应层目录。
 - 若执行 `envsetup.sh --reset` 后丢失层引用，需手动重新加入
-  `BBLAYERS =+ ".../layers/meta-atk-mp257"`。
+  `BBLAYERS =+ ".../atk-mp257/meta-atk-mp257"`。
 - `conf/local.conf` 沿用 ST 默认覆盖：`PACKAGE_CLASSES = "package_deb"`、
   `INHERIT += "rm_work buildhistory"`、`PRSERV_HOST = "localhost:0"`。
 
