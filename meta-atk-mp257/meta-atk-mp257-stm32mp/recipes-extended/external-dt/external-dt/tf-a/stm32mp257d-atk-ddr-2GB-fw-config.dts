@@ -1,0 +1,2 @@
+#include "stm32mp25-fw-config.dtsi"
+#include "stm32mp257d-atk-ddr-2GB-ca35tdcid-fw-config.dtsi"

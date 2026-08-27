@@ -1,0 +1,175 @@
+#include "stm32mp257d-atk-ddr-2GB.dts"
+/ {
+/*
+	rgb_lcd_id select id:
+		atk_rgb_lcd_7_800x480 = 1,
+		atk_rgb_lcd_7_1024x600 = 2,		
+		atk_rgb_lcd_4.3_800x480 = 4,
+		atk_rgb_lcd_10.1_1280x800 = 5,
+*/
+	rgb_lcd_id {
+        rgb_select_id = <2>;    //default, atk_rgb_lcd_7_1024x600
+    };
+
+    panel_rgb: panel-rgb {
+        compatible = "panel-dpi";
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&ltdc_pins_a>;
+		pinctrl-1 = <&ltdc_sleep_pins_a>;
+        backlight = <&panel_rgb_backlight>;
+		power-supply = <&vdd_5v>;
+        status = "okay";
+
+        data-mapping = "rgb565";
+
+        //atk_rgb_lcd_7_800x480
+        panel-timing-1 {
+            clock-frequency = <33300000>;
+            hactive = <800>;
+            vactive = <480>;
+            hback-porch = <46>;
+            hfront-porch = <210>;
+            hsync-len = <1>;
+            vback-porch = <23>;
+            vfront-porch = <22>;
+            vsync-len = <1>;
+        };
+
+        //atk_rgb_lcd_7_1024x600
+        panel-timing-2 {
+            clock-frequency = <51200000>;
+            hactive = <1024>;
+            vactive = <600>;
+            hback-porch = <140>;
+            hfront-porch = <160>;
+            hsync-len = <20>;            
+            vback-porch = <20>;
+            vfront-porch = <12>;
+            vsync-len = <3>;
+        };
+
+        //atk_rgb_lcd_4.3_800x480
+        panel-timing-4 {
+            clock-frequency = <31000000>;
+            hactive = <800>;
+            vactive = <480>;
+            hback-porch = <88>;
+            hfront-porch = <40>;
+            hsync-len = <48>;        
+            vback-porch = <32>;
+            vfront-porch = <13>;
+            vsync-len = <3>;
+        };
+
+        //atk_rgb_lcd_10.1_1280x800
+        panel-timing-5 {
+            clock-frequency = <71100000>;
+            hactive = <1280>;
+            vactive = <800>;
+            hback-porch = <80>;
+            hfront-porch = <70>;
+            hsync-len = <10>;
+            vback-porch = <10>;
+            vfront-porch = <10>;
+            vsync-len = <3>;
+        };
+
+		port {
+			rgb_panel_in: endpoint {
+				remote-endpoint = <&ltdc_ep0_out>;
+			};
+		};
+	};
+
+	panel_rgb_backlight: panel-rgb-backlight {
+        compatible = "pwm-backlight";
+        pwms = <&pwm1 3 5000000 0>;
+		brightness-levels = <
+                     0   1   2   3   4   5   6   7	 8   9
+					10  11  12  13  14  15  16  17  18  19
+					20  21  22  23  24  25  26  27  28  29
+					30  31  32  33  34  35  36  37  38  39
+                    40  41  42  43  44  45  46  47  48  49
+					50  51  52  53  54  55  56  57  58  59
+					60  61  62  63  64  65  66  67  68  69
+					70  71  72  73  74  75  76  77  78  79
+                    80  81  82  83  84  85  86  87  88  89
+					90  91  92  93  94  95  96  97  98  99
+					100 101 102 103 104 105 106 107 108 109
+					110 111 112 113 114 115 116 117 118 119
+                    120 121 122 123 124 125 126 127 128 129
+					130 131 132 133 134 135 136 137 138 139
+					140 141 142 143 144 145 146 147 148 149
+					150 151 152 153 154 155 156 157 158 159
+                    160 161 162 163 164 165 166 167 168 169
+					170 171 172 173 174 175 176 177 178 179
+					180 181 182 183 184 185 186 187 188 189
+					190 191 192 193 194 195 196 197 198 199
+                    200 201 202 203 204 205 206 207 208 209
+					210 211 212 213 214 215 216 217 218 219
+					220 221 222 223 224 225 226 227 228 229
+					230 231 232 233 234 235 236 237 238 239
+                    240 241 242 243 244 245 246 247 248 249
+					250 251 252 253 254 255>;
+        power-supply = <&vdd_3v3>;
+        default-brightness-level = <255>;
+        status = "okay";
+	};
+};
+
+&timers1 {
+    status = "okay";
+    /* spare dmas for other usage */
+    /delete-property/dmas;
+    /delete-property/dma-names;
+
+    pwm1: pwm {
+        pinctrl-0 = <&pwm1_pins_a>;
+        pinctrl-1 = <&pwm1_sleep_pins_a>;
+        pinctrl-names = "default", "sleep";
+        #pwm-cells = <2>;
+        status = "okay";
+    };
+};
+
+&i2c3 {
+    //ft5426, cst340 touchscreen
+    /*
+    ft5426_ts@38 {
+        compatible = "edt,edt-ft5206";
+        reg = <0x38>;
+        interrupt-parent = <&gpiof>;
+        interrupts = <11 IRQ_TYPE_EDGE_RISING>;
+        irq-gpios = <&gpiof 11 GPIO_ACTIVE_HIGH>;
+        reset-gpios = <&gpiof 13 GPIO_ACTIVE_LOW>;
+        status = "okay";
+    };
+    */
+
+    //goodix touchscreen
+    goodix_ts@14 {
+		compatible = "goodix,gt9271", "goodix,gt911";
+		reg = <0x14>;
+		pinctrl-names = "default";
+		interrupt-parent = <&gpiof>;
+		interrupts = <11 IRQ_TYPE_EDGE_RISING>;
+		irq-gpios = <&gpiof 11 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpiof 13 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+};
+
+&ltdc {
+	rotation-memory = <&ltdc_sec_rotation>;
+	status = "okay";
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+        ltdc_ep0_out: endpoint@0 {
+            reg = <0>;
+            remote-endpoint = <&rgb_panel_in>;
+        };
+	};
+};

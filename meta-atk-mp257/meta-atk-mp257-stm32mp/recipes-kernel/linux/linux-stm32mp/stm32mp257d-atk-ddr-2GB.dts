@@ -1,0 +1,763 @@
+/dts-v1/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+#include <dt-bindings/regulator/st,stm32mp25-regulator.h>
+#include "stm32mp257.dtsi"
+#include "stm32mp25-pinctrl-atk-ddr-2GB.dtsi"
+#include "stm32mp25xxak-pinctrl.dtsi"
+#include "stm32mp257d-atk-ddr-2GB-ca35tdcid-resmem.dtsi"
+#include <dt-bindings/usb/pd.h>
+
+/ {
+	model = "ALIENTEK STM32MP257 Evaluation Board";
+	compatible = "st,stm32mp257d-atk", "st,stm32mp257";
+
+	aliases {
+		ethernet0 = &eth2;
+		ethernet1 = &eth1;
+		serial0 = &usart2;
+		serial1 = &usart1;
+		serial2 = &uart7;
+		mmc0 = &sdmmc1;
+		mmc1 = &sdmmc2;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		framebuffer {
+			compatible = "simple-framebuffer";
+			clocks = <&rcc CK_BUS_LTDC>, <&rcc CK_KER_LTDC>,
+				 <&rcc CK_BUS_LVDS>, <&rcc CK_KER_LVDSPHY>;
+			status = "disabled";
+		};
+	};
+
+	clocks {
+		cec_clock: cec-clock {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <12000000>;
+		};
+
+		clk_ext_camera: clk-ext-camera {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <24000000>;
+		};
+
+		pad_clk: pad-clk {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <100000000>;
+		};
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x80000000>;
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		button-user {
+			label = "User-Key";
+			linux,code = <BTN_1>;
+			gpios = <&gpioh 5 GPIO_ACTIVE_HIGH>;
+			gpio-key,wakeup;
+			status = "okay";
+		};
+	};
+
+	gpio-leds {
+		compatible = "gpio-leds";
+		status = "okay";
+
+		led {
+			function = LED_FUNCTION_HEARTBEAT;
+			color = <LED_COLOR_ID_RED>;
+			gpios = <&gpioh 4 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+			default-state = "off";
+		};
+	};
+
+    dht11 {
+        compatible = "alientek,dht11";
+        dht11-gpio = <&gpioz 8 GPIO_ACTIVE_LOW>;
+        status = "okay";
+    };
+
+    ds18b20 {
+        compatible = "alientek,ds18b20";
+        ds18b20-gpio = <&gpioz 8 GPIO_ACTIVE_LOW>;
+        status = "okay";
+    };
+
+    sound {
+        compatible = "audio-graph-card";
+        label = "es8388-audio";
+		dais = <&sai1a_port &sai1b_port>;
+		widgets = 
+			"Headphone", "Headphone Jack",
+			"Speaker", "Ext Spk",
+			"Microphone", "Mic Jack";
+        routing =
+			"Playback", "MCLK",
+    		"Capture", "MCLK",
+            "Headphone Jack", "LOUT1",
+            "Headphone Jack", "ROUT1",
+            "Ext Spk", "LOUT2",
+            "Ext Spk", "ROUT2",
+            "LINPUT1", "Mic Jack",
+            "LINPUT2", "Mic Jack",
+            "RINPUT2", "Mic Jack",
+            "Mic Jack", "Mic Bias";
+    };
+
+	vdda_1v8: regulator-vdda-1v8 {
+			compatible = "regulator-fixed";
+			regulator-name = "vdda_1v8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
+			regulator-boot-on;
+	};
+
+	vddref_1v8: regulator-vddref-1v8 {
+			compatible = "regulator-fixed";
+			regulator-name = "vddref_1v8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
+			regulator-boot-on;
+	};
+
+	vdd_3v3: regulator-vdd-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd_3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	vdd_5v: regulator-vdd-5v {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd_5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	imx335_2v9: imx335-2v9 {
+		compatible = "regulator-fixed";
+		regulator-name = "imx335-avdd";
+		regulator-min-microvolt = <2900000>;
+		regulator-max-microvolt = <2900000>;
+		regulator-always-on;
+	};
+
+	imx335_1v8: imx335-1v8 {
+		compatible = "regulator-fixed";
+		regulator-name = "imx335-ovdd";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+	};
+
+	imx335_1v2: imx335-1v2 {
+		compatible = "regulator-fixed";
+		regulator-name = "imx335-dvdd";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1200000>;
+		regulator-always-on;
+	};
+};
+
+&a35ss_syscfg {
+	status = "okay";
+};
+
+&ipcc1 {
+	status = "okay";
+};
+
+&ipcc2 {
+	status = "okay";
+};
+
+/* use LPTIMER with tick broadcast for suspend mode */
+&lptimer3 {
+	status = "okay";
+	timer {
+		status = "okay";
+	};
+};
+
+&ahbsr {
+	mbox_client: mailbox-client@1 {
+		compatible = "mbox-cdev";
+		reg = <1 0>;
+		memory-region =  <&ipc_shmem_2>;
+		mboxes = <&ipcc2 0>;
+		mbox-names = "rx-tx";
+		status = "okay";
+	};
+};
+
+&arm_wdt {
+	timeout-sec = <32>;
+	status = "okay";
+};
+
+&combophy {
+	clocks = <&rcc CK_BUS_USB3PCIEPHY>, <&rcc CK_KER_USB3PCIEPHY>, <&pad_clk>;
+	clock-names = "apb-clk", "ker-clk", "pad-clk";
+	st,rx_equalizer = <1>;
+	status = "okay";
+};
+
+&crc {
+	status = "okay";
+};
+
+&adc_12 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&adc1_in15_pins_a>;
+	vdda-supply = <&vdda_1v8>;
+	vref-supply = <&vddref_1v8>;
+	status = "okay";
+
+	adc1: adc@0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		channel@15 {
+			reg = <15>;               			/* ADC1 in15 channel is used */
+			st,min-sample-time-ns = <10000>;  	/* 10µs sampling time */
+		};
+	};
+};
+
+&csi {
+	vdd-supply = <&scmi_vddcore>;
+	vdda18-supply = <&scmi_v1v8>;
+	status = "okay";
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		port@0 {
+			reg = <0>;
+			csi_sink: endpoint {			
+				remote-endpoint = <&imx335_ep>;	
+				data-lanes = <0 1>;
+				bus-type = <4>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			csi_source: endpoint {
+				remote-endpoint = <&dcmipp_0>;
+			};
+		};
+	};
+};
+
+&dcmipp {
+	status = "okay";
+	port {
+		dcmipp_0: endpoint {
+			remote-endpoint = <&csi_source>;
+			bus-type = <4>;
+		};
+	};
+};
+
+&eth1 {
+	status = "okay";
+	pinctrl-0 = <&eth1_mdio_pins_a>;
+	pinctrl-names = "default";
+	phy-mode = "rgmii";
+	st,eth-clk-sel;
+	snps,ext-systime;
+    fixed_link: fixed-link {  
+    	speed = <1000>;
+    	full-duplex;
+    };
+
+    mdio1 {
+    	#address-cells = <1>;
+       	#size-cells = <0>;
+    	compatible = "snps,dwmac-mdio";
+		phy1_eth1: ethernet-phy@4 {
+				compatible = "ethernet-phy-id4f51.e91b",
+						"ethernet-phy-ieee802.3-c22";			
+				reg = <4>;  
+		};
+		phy2_eth1: ethernet-phy@5 {
+				compatible = "ethernet-phy-id4f51.e91b",
+						"ethernet-phy-ieee802.3-c22";
+				reset-gpios =  <&gpiof 3 GPIO_ACTIVE_LOW>;
+				reset-assert-us = <10000>;
+				reset-deassert-us = <80000>;
+				reg = <5>;
+		};
+    };
+};
+
+&eth2 {
+	status = "okay";
+	pinctrl-0 = <&eth2_rgmii_pins_a>;
+	pinctrl-1 = <&eth2_rgmii_sleep_pins_a>;
+	pinctrl-names = "default", "sleep";
+	phy-mode = "rgmii-id";
+	max-speed = <1000>;
+	phy-handle = <&phy1_eth2>;
+	st,eth-ptp-from-rcc;
+
+	mdio1 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "snps,dwmac-mdio";
+		phy1_eth2: ethernet-phy@1 {
+			compatible = "ethernet-phy-id4f51.e91b";
+			reset-gpios =  <&gpiof 4 GPIO_ACTIVE_LOW>;
+			reset-assert-us = <10000>;
+			reset-deassert-us = <80000>;
+			reg = <1>;
+		};
+	};
+};
+
+&gpu {
+	contiguous-area = <&gpu_reserved>;
+	status = "okay";
+};
+
+&hpdma {
+	memory-region = <&hpdma1_lli>;
+};
+
+&hpdma2 {
+	memory-region = <&hpdma2_lli>;
+};
+
+&hpdma3 {
+	memory-region = <&hpdma3_lli>;
+};
+
+&i2c3 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&i2c3_pins_a>;
+	pinctrl-1 = <&i2c3_sleep_pins_a>;
+	status = "okay";
+	/delete-property/dmas;
+	/delete-property/dma-names;
+
+	pcf8563@51 {
+		compatible = "nxp,pcf8563";
+		reg = <0x51>;
+		status = "okay";
+	};
+};
+
+&i2c4 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&i2c4_pins_a>;
+	pinctrl-1 = <&i2c4_sleep_pins_a>;
+	status = "okay";
+	/delete-property/dmas;
+	/delete-property/dma-names;
+
+	eeprom@50 {
+		compatible = "microchip,24c64", "atmel,24c64";
+		pagesize = <32>;
+		reg = <0x50>;
+		vcc-supply = <&vdd_3v3>;
+		status = "okay";
+	};
+
+	fusb302@22 {
+		compatible = "fcs,fusb302","fairchild,fusb302";
+		reg = <0x22>;
+		int-n-gpios = <&gpioz 6 GPIO_ACTIVE_HIGH>;
+		vbus-5v-gpios = <&gpioz 5 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+
+		connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			power-role = "dual";
+			power-opmode = "default";
+			try-power-role = "sink";
+			source-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)>;
+			sink-pdos = <PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)
+			PDO_VAR(3000, 12000, 3000)
+			PDO_PPS_APDO(3000, 11000, 3000)>;
+			op-sink-microwatt = <10000000>;
+			
+			port {
+				con_usbotg_hs_ep: endpoint {
+				remote-endpoint = <&usbotg_hs_ep>;
+				};
+			};
+		};
+	};
+
+	imx335: imx335@1a {
+		compatible = "sony,imx335";
+		reg = <0x1a>;
+		clocks = <&clk_ext_camera>;
+		avdd-supply = <&imx335_2v9>;
+		ovdd-supply = <&imx335_1v8>;
+		dvdd-supply = <&imx335_1v2>;        
+		reset-gpios = <&gpiog 4 (GPIO_ACTIVE_HIGH | GPIO_PUSH_PULL)>;
+		powerdown-gpios = <&gpiog 3 (GPIO_ACTIVE_HIGH | GPIO_PUSH_PULL)>;
+		status = "okay";
+
+		port {
+			imx335_ep: endpoint {
+				remote-endpoint = <&csi_sink>;
+				clock-lanes = <0>;
+				data-lanes = <1 2>;
+				link-frequencies = /bits/ 64 <594000000>;
+			};
+		};
+	};
+
+	es8388: es8388@11 {
+		compatible = "alientek,es8388";
+		reg = <0x11>;
+		#sound-dai-cells = <0>;
+		spk-con-gpios = <&gpiod 12 GPIO_ACTIVE_LOW>;
+		hp-det-gpios = <&gpiod 13 GPIO_ACTIVE_LOW>;
+		clocks = <&sai1b>;
+		clock-names = "MCLK";
+		DVDD-supply = <&vdd_3v3>;
+		PVDD-supply = <&vdd_3v3>;
+		AVDD-supply = <&vdd_3v3>;
+		HPVDD-supply = <&vdd_3v3>;
+		status = "okay";
+
+		port {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			es8388_tx_endpoint: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&sai1b_endpoint>;
+				frame-master;
+				bitclock-master;
+			};
+
+			es8388_rx_endpoint: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&sai1a_endpoint>;
+				frame-master;
+				bitclock-master;
+			};
+		};
+	};
+};
+
+&i2c8 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&i2c8_pins_a>;
+	pinctrl-1 = <&i2c8_sleep_pins_a>;
+	status = "okay";
+	/delete-property/dmas;
+	/delete-property/dma-names;
+};
+
+&sai1 {
+	clocks = <&rcc CK_BUS_SAI1>;
+	clock-names = "pclk";
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&sai1a_pins_a>, <&sai1b_pins_b>;
+	pinctrl-1 = <&sai1a_sleep_pins_a>, <&sai1b_sleep_pins_b>;
+	status = "okay";
+
+	sai1a: audio-controller@40290004 {
+		dma-names = "rx";
+		clocks = <&rcc CK_KER_SAI1>, <&sai1b>;
+		clock-names = "sai_ck", "MCLK";
+		dmas = <&hpdma 73 0x43 0x12>;
+		st,sync = <&sai1b 2>;
+		status = "okay";
+
+		sai1a_port: port {
+			sai1a_endpoint: endpoint {
+				remote-endpoint = <&es8388_rx_endpoint>;
+				dai-format = "i2s";
+				mclk-fs = <256>;
+				dai-tdm-slot-num = <2>;
+				dai-tdm-slot-width = <32>;
+			};
+		};
+ 	};
+
+	sai1b: audio-controller@40290024 {
+		#clock-cells = <0>;
+		dma-names = "tx";
+		clock-names = "sai_ck";
+		dmas = <&hpdma 74 0x43 0x21>;
+		status = "okay";
+
+		sai1b_port: port {
+			sai1b_endpoint: endpoint {
+				remote-endpoint = <&es8388_tx_endpoint>;
+				dai-format = "i2s";
+				mclk-fs = <256>;
+				dai-tdm-slot-num = <2>;
+				dai-tdm-slot-width = <32>;
+ 			};
+ 		};		
+	};
+};
+
+&timers17 {
+    status = "okay";
+    /* spare dmas for other usage */
+    /delete-property/dmas;
+    /delete-property/dma-names;
+
+    pwm17: pwm {
+        pinctrl-0 = <&pwm17_pins_a>;
+        pinctrl-1 = <&pwm17_sleep_pins_a>;
+        pinctrl-names = "default", "sleep";
+        #pwm-cells = <2>;
+        status = "okay";
+    };
+};
+
+&ipcc1 {
+	status = "okay";
+};
+
+&m0_rproc {
+	mboxes = <&ipcc2 0>, <&ipcc2 1>, <&ipcc2 2>;
+	mbox-names = "rx", "tx", "shutdown";
+	memory-region = <&cm0_cube_fw>, <&cm0_cube_data>;
+	clocks = <&rcc CK_CPU3>,
+		 <&rcc CK_CPU3_AM>,
+		 <&rcc CK_LPUART1_C3>,
+		 <&rcc CK_KER_LPUART1>,
+		 <&rcc CK_LPUART1_AM>,
+		 <&scmi_clk CK_SCMI_IPCC2>,
+		 <&scmi_clk CK_SCMI_IPCC2_AM>;
+	status = "okay";
+};
+
+&m33_rproc {
+	mboxes = <&ipcc1 0x100>, <&ipcc1 0x101>, <&ipcc1 2>;
+	mbox-names = "vq0", "vq1", "shutdown";
+	memory-region = <&cm33_cube_fw>, <&cm33_cube_data>,
+			<&ipc_shmem_1>, <&vdev0vring0>,
+			<&vdev0vring1>, <&vdev0buffer>,
+			<&cm33_sram2>;
+	st,syscfg-nsvtor = <&a35ss_syscfg 0xa8 0xffffff80>;
+	status = "okay";
+};
+
+&m_can1 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&m_can1_pins_a>;
+	pinctrl-1 = <&m_can1_sleep_pins_a>;
+	status = "okay";
+};
+
+&m_can2 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&m_can2_pins_a>;
+	pinctrl-1 = <&m_can2_sleep_pins_a>;
+	status = "okay";
+};
+
+&m_can3 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&m_can3_pins_a>;
+	pinctrl-1 = <&m_can3_sleep_pins_a>;
+	status = "okay";
+};
+
+&pcie_ep {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie_init_pins_a>;
+	reset-gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
+	status = "disabled";
+};
+
+&pcie_rc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie_init_pins_a>;
+	reset-gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&rtc {
+	status = "okay";
+};
+
+&scmi_regu {
+	scmi_vddio1: regulator@0 {
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+	};
+	scmi_vddcore: regulator@11  {
+		reg = <VOLTD_SCMI_STPMIC2_BUCK2>;
+		regulator-name = "vddcore";
+	};
+	scmi_v1v8: regulator@14  {
+		reg = <VOLTD_SCMI_STPMIC2_BUCK5>;
+		regulator-name = "v1v8";
+	};
+	scmi_v3v3: regulator@16 {
+		reg = <VOLTD_SCMI_STPMIC2_BUCK7>;
+		regulator-name = "v3v3";
+	};
+	scmi_vdd_emmc: regulator@18 {
+		reg = <VOLTD_SCMI_STPMIC2_LDO2>;
+		regulator-name = "vdd_emmc";
+	};
+	scmi_vdd3v3_usb: regulator@20 {
+		reg = <VOLTD_SCMI_STPMIC2_LDO4>;
+		regulator-name = "vdd3v3_usb";
+	};
+	scmi_vdd_sdcard: regulator@23 {
+		reg = <VOLTD_SCMI_STPMIC2_LDO7>;
+		regulator-name = "vdd_sdcard";
+	};
+};
+
+&sdmmc1 {
+	pinctrl-names = "default", "opendrain", "sleep";
+	pinctrl-0 = <&sdmmc1_b4_pins_a>;
+	pinctrl-1 = <&sdmmc1_b4_od_pins_a>;
+	pinctrl-2 = <&sdmmc1_b4_sleep_pins_a>;
+	cd-gpios = <&gpioi 8 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+	disable-wp;
+	st,neg-edge;
+	bus-width = <4>;
+	vmmc-supply = <&scmi_vdd_sdcard>;
+	vqmmc-supply = <&scmi_vddio1>;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-ddr50;
+	sd-uhs-sdr104;
+	status = "okay";
+};
+
+&sdmmc2 {
+	pinctrl-names = "default", "opendrain", "sleep";
+	pinctrl-0 = <&sdmmc2_b4_pins_a &sdmmc2_d47_pins_a>;
+	pinctrl-1 = <&sdmmc2_b4_od_pins_a &sdmmc2_d47_pins_a>;
+	pinctrl-2 = <&sdmmc2_b4_sleep_pins_a &sdmmc2_d47_sleep_pins_a>;
+	non-removable;
+	no-sd;
+	no-sdio;
+	st,neg-edge;
+	bus-width = <8>;
+	vmmc-supply = <&scmi_vdd_emmc>;
+	vqmmc-supply = <&scmi_vddio2>;
+	mmc-ddr-1_8v;
+	status = "okay";
+};
+
+&spi8 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&spi8_pins_a>;
+	pinctrl-1 = <&spi8_sleep_pins_a>;
+	cs-gpios = <&gpioz 3 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	spiflash: w25q128@0 {
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+		status = "okay";
+	};
+};
+
+&switch0 {
+	status = "okay";
+	pinctrl-0 = <&eth1_rgmii_pins_a>, <&eth3_rgmii_pins_a>;
+	pinctrl-1 = <&eth1_rgmii_sleep_pins_a>, <&eth3_rgmii_sleep_pins_a>;
+	pinctrl-names = "default", "sleep";
+	phy-mode = "rgmii";
+	st,ethsw-internal-125;
+};
+
+&usart1 {
+	pinctrl-names = "default", "idle", "sleep";
+	pinctrl-0 = <&usart1_pins_a>;
+	pinctrl-1 = <&usart1_idle_pins_a>;
+	pinctrl-2 = <&usart1_sleep_pins_a>;
+	status = "okay";
+};
+
+&usart2 {
+	pinctrl-names = "default", "idle", "sleep";
+	pinctrl-0 = <&usart2_pins_a>;
+	pinctrl-1 = <&usart2_idle_pins_a>;
+	pinctrl-2 = <&usart2_sleep_pins_a>;
+	/delete-property/dmas;
+	/delete-property/dma-names;
+	status = "okay";
+};
+
+&uart7 {
+	pinctrl-names = "default", "idle", "sleep";
+	pinctrl-0 = <&uart7_pins_a>;
+	pinctrl-1 = <&uart7_idle_pins_a>;
+	pinctrl-2 = <&uart7_sleep_pins_a>;
+	status = "okay";
+};
+
+&usb2_phy1 {
+	vdd33-supply = <&scmi_vdd3v3_usb>;
+	status = "okay";
+};
+
+&usb2_phy2 {
+	vdd33-supply = <&scmi_vdd3v3_usb>;
+	status = "okay";
+};
+
+&usbh {
+	status = "okay";
+
+	usbh_ehci: usb@482f0000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	usbh_ohci: usb@482e0000 {
+		status = "disabled";
+	};
+};
+
+&usb3dr {
+	status = "okay";
+
+	dwc3: usb@48300000 {
+		maximum-speed = "high-speed";
+        usb-role-switch;
+
+		port {
+			usbotg_hs_ep: endpoint {
+				remote-endpoint = <&con_usbotg_hs_ep>;
+			};
+		};
+	};
+};
