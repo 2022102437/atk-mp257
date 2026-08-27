@@ -110,5 +110,4 @@ bitbake fip-stm32mp
 ## 参考
 
 - OpenSTLinux v6.2.1 官方文档：<https://wiki.st.com/stm32mpu>
-- 启动失败修复记录与层重构笔记见仓库上级目录
-  `NOTES-ATK-STARTUP-FIX.md`、`NOTES-ATK-LAYER-RESTRUCTURE.md`。
+- 米尔电子yocto仓库：<https://github.com/MYiR-Dev/myir-st-manifest.git>
