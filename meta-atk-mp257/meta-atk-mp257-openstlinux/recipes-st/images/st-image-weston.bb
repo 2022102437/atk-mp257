@@ -26,6 +26,7 @@ M33TD_SPLASHSCREEN = "${@bb.utils.contains('MACHINE_FEATURES', 'm33td', 'psplash
 CORE_IMAGE_EXTRA_INSTALL += " \
     resize-helper \
     st-hostname \
+    end0-retry \
     \
     packagegroup-framework-core-base    \
     packagegroup-framework-tools-base   \

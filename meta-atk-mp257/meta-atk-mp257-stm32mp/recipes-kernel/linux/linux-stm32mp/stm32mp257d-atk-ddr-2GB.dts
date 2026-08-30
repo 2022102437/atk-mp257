@@ -334,6 +334,10 @@
 			reset-gpios =  <&gpiof 4 GPIO_ACTIVE_LOW>;
 			reset-assert-us = <10000>;
 			reset-deassert-us = <80000>;
+			motorcomm,auto-sleep-disabled;
+			motorcomm,keep-pll-enabled;
+			tx-internal-delay-ps = <300>;
+			rx-internal-delay-ps = <1900>;
 			reg = <1>;
 		};
 	};

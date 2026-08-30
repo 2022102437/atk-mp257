@@ -24,6 +24,7 @@ ALIENTEK_DTS_FILES = " \
 ALIENTEK_BASE_DTB = "stm32mp257d-atk-ddr-2GB"
 
 SRC_URI:append:stm32mp257-atk = " ${@' '.join('file://%s' % f for f in '${ALIENTEK_DTS_FILES}'.split())}"
+SRC_URI:append:stm32mp257-atk = " file://0001-motorcomm-yt8531-xtal-init.patch"
 
 do_configure:prepend:stm32mp257-atk() {
     install -d ${S}/arch/arm64/boot/dts/st

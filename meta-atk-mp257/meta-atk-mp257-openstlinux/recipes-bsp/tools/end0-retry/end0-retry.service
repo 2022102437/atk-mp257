@@ -1,0 +1,13 @@
+[Unit]
+Description=ALIENTEK end0 bring-up retry
+DefaultDependencies=false
+After=systemd-udev-settle.service systemd-networkd.service network-pre.target
+Before=network-online.target multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=-//usr/bin/end0-retry.sh
+WatchdogSec=90
+
+[Install]
+WantedBy=multi-user.target
