@@ -1,0 +1,12 @@
+[Unit]
+Description=DE-gPTP Edge daemon
+After=network.target
+Wants=network.target
+
+[Service]
+PIDFile=/var/run/deptp.pid
+ExecStart=/usr/sbin/deptp -s /etc/deptp/ptp_config.xml
+
+
+[Install]
+WantedBy=multi-user.target

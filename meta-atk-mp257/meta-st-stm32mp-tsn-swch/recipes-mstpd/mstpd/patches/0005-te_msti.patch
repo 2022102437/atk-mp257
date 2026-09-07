@@ -1,0 +1,273 @@
+From 695473ae0c1423de6165b1a8e3df03eb4540153e Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@foss.st.com>
+Date: Wed, 31 Jan 2024 15:36:09 +0100
+Subject: [PATCH 5/6] te_msti
+
+---
+ bridge_track.c |  6 ++++++
+ mstp.c         | 50 ++++++++++++++++++++++++++++++++++++++++++++++++--
+ mstp.h         |  9 +++++++++
+ 3 files changed, 63 insertions(+), 2 deletions(-)
+
+diff --git a/bridge_track.c b/bridge_track.c
+index 8ddbb75..3db93f1 100644
+--- a/bridge_track.c
++++ b/bridge_track.c
+@@ -853,6 +853,12 @@ int CTL_add_bridges(int *br_array, int* *ifaces_lists)
+                       br_array[i]);
+                 return -1;
+             }
++            else if (!(MSTP_IN_create_msti(br, TE_MSTID)))
++            {
++                ERROR("Couldn't create te-msti for bridge interface %d",
++                          br_array[i]);
++                return -1;
++            }
+             if(0 <= (br_flags = get_flags(br->sysdeps.name)))
+                 set_br_up(br, !!(br_flags & IFF_UP));
+         }
+diff --git a/mstp.c b/mstp.c
+index c5966c3..9ee7ceb 100644
+--- a/mstp.c
++++ b/mstp.c
+@@ -438,7 +438,7 @@ void MSTP_IN_set_bridge_enable(bridge_t *br, bool up)
+         port_default_internal_vars(prt);
+         FOREACH_PTP_IN_PORT(ptp, prt)
+         {
+-            if(BR_STATE_DISABLED != ptp->state)
++            if((__constant_be16_to_cpu(ptp->MSTID) != TE_MSTID) || (BR_STATE_DISABLED != ptp->state))
+             {
+                 MSTP_OUT_set_state(ptp, BR_STATE_DISABLED);
+             }
+@@ -1574,6 +1574,7 @@ bool MSTP_IN_delete_msti(bridge_t *br, __u16 mstid)
+     found = false;
+     FOREACH_TREE_IN_BRIDGE(tree, br)
+     {
++        if (__constant_be16_to_cpu(tree->MSTID) == TE_MSTID) continue;
+         if(tree->MSTID == MSTID)
+         {
+             found = true;
+@@ -1653,7 +1654,7 @@ static void set_TopologyChange(tree_t *tree, bool hint_SetToYes, port_t *port)
+     tree->topology_change = false;
+     FOREACH_PTP_IN_TREE(ptp, tree)
+     {
+-        if(0 != ptp->tcWhile)
++        if((0 != ptp->tcWhile) && (__constant_be16_to_cpu(ptp->MSTID) != TE_MSTID))
+         {
+             tree->topology_change = true;
+             tree->time_since_topology_change = 0;
+@@ -2393,6 +2394,7 @@ static inline __u8 message_role_from_port_role(per_tree_port_t *ptp)
+         case roleMaster:
+             return encodedRoleMaster;
+         default:
++            if (__constant_be16_to_cpu(ptp->MSTID) != TE_MSTID)
+             ERROR_PRTNAME(ptp->port->bridge, ptp->port,
+                           "Attempt to send from port with Disabled role");
+             return encodedRoleAlternateBackup;
+@@ -2582,6 +2584,7 @@ static void updtRolesDisabledTree(tree_t *tree)
+     per_tree_port_t *ptp;
+ 
+     FOREACH_PTP_IN_TREE(ptp, tree)
++        if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) continue;
+         ptp->selectedRole = roleDisabled;
+ }
+ 
+@@ -2864,6 +2867,7 @@ static void PTSM_tick(port_t *prt)
+ 
+     FOREACH_PTP_IN_PORT(ptp, prt)
+     {
++        if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) continue;
+         if(ptp->fdWhile)
+             --(ptp->fdWhile);
+         if(ptp->rrWhile)
+@@ -2946,6 +2950,7 @@ static bool PRSM_run(port_t *prt, bool dry_run)
+             rcvdAnyMsg = false;
+             FOREACH_PTP_IN_PORT(ptp, prt)
+             {
++                if(__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) continue;
+                 if(ptp->rcvdMsg)
+                 {
+                     rcvdAnyMsg = true;
+@@ -3330,6 +3335,7 @@ static bool PISM_run(per_tree_port_t *ptp, bool dry_run);
+ 
+ static void PISM_to_DISABLED(per_tree_port_t *ptp, bool begin)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) return;
+     PISM_LOG("");
+     ptp->PISM_state = PISM_DISABLED;
+ 
+@@ -3349,6 +3355,7 @@ static void PISM_to_DISABLED(per_tree_port_t *ptp, bool begin)
+ 
+ static void PISM_to_AGED(per_tree_port_t *ptp)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) return;
+     PISM_LOG("");
+     ptp->PISM_state = PISM_AGED;
+ 
+@@ -3361,6 +3368,7 @@ static void PISM_to_AGED(per_tree_port_t *ptp)
+ 
+ static void PISM_to_UPDATE(per_tree_port_t *ptp)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) return;
+     PISM_LOG("");
+     ptp->PISM_state = PISM_UPDATE;
+ 
+@@ -3384,6 +3392,7 @@ static void PISM_to_UPDATE(per_tree_port_t *ptp)
+ 
+ static void PISM_to_SUPERIOR_DESIGNATED(per_tree_port_t *ptp)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) return;
+     PISM_LOG("");
+     ptp->PISM_state = PISM_SUPERIOR_DESIGNATED;
+ 
+@@ -3410,6 +3419,7 @@ static void PISM_to_SUPERIOR_DESIGNATED(per_tree_port_t *ptp)
+ 
+ static void PISM_to_REPEATED_DESIGNATED(per_tree_port_t *ptp)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) return;
+     PISM_LOG("");
+     ptp->PISM_state = PISM_REPEATED_DESIGNATED;
+ 
+@@ -3427,6 +3437,7 @@ static void PISM_to_REPEATED_DESIGNATED(per_tree_port_t *ptp)
+ 
+ static void PISM_to_INFERIOR_DESIGNATED(per_tree_port_t *ptp)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) return;
+     PISM_LOG("");
+     ptp->PISM_state = PISM_INFERIOR_DESIGNATED;
+ 
+@@ -3438,6 +3449,7 @@ static void PISM_to_INFERIOR_DESIGNATED(per_tree_port_t *ptp)
+ 
+ static void PISM_to_NOT_DESIGNATED(per_tree_port_t *ptp)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) return;
+     PISM_LOG("");
+     ptp->PISM_state = PISM_NOT_DESIGNATED;
+ 
+@@ -3450,6 +3462,7 @@ static void PISM_to_NOT_DESIGNATED(per_tree_port_t *ptp)
+ 
+ static void PISM_to_OTHER(per_tree_port_t *ptp)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) return;
+     PISM_LOG("");
+     ptp->PISM_state = PISM_OTHER;
+ 
+@@ -3460,6 +3473,7 @@ static void PISM_to_OTHER(per_tree_port_t *ptp)
+ 
+ static void PISM_to_CURRENT(per_tree_port_t *ptp)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) return;
+     PISM_LOG("");
+     ptp->PISM_state = PISM_CURRENT;
+ 
+@@ -3468,6 +3482,7 @@ static void PISM_to_CURRENT(per_tree_port_t *ptp)
+ 
+ static void PISM_to_RECEIVE(per_tree_port_t *ptp)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) return;
+     PISM_LOG("");
+     ptp->PISM_state = PISM_RECEIVE;
+ 
+@@ -4584,6 +4599,15 @@ static bool PSTSM_run(per_tree_port_t *ptp, bool dry_run);
+ 
+ static void PSTSM_to_DISCARDING(per_tree_port_t *ptp, bool begin)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID)
++    {
++        ptp->PSTSM_state = PSTSM_FORWARDING;
++        ptp->learning = false;
++        ptp->forwarding = true;
++        MSTP_OUT_set_state(ptp, BR_STATE_FORWARDING);
++        return;
++    }
++
+     ptp->PSTSM_state = PSTSM_DISCARDING;
+ 
+     /* This effectively sets BLOCKING state:
+@@ -4604,6 +4628,15 @@ static void PSTSM_to_DISCARDING(per_tree_port_t *ptp, bool begin)
+ 
+ static void PSTSM_to_LEARNING(per_tree_port_t *ptp)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID)
++    {
++         ptp->PSTSM_state = PSTSM_FORWARDING;
++         ptp->learning = false;
++         ptp->forwarding = true;
++         MSTP_OUT_set_state(ptp, BR_STATE_FORWARDING);
++         return;
++    }
++
+     ptp->PSTSM_state = PSTSM_LEARNING;
+ 
+     /* enableLearning(); */
+@@ -4635,6 +4668,15 @@ static void PSTSM_to_FORWARDING(per_tree_port_t *ptp)
+ 
+ static bool PSTSM_run(per_tree_port_t *ptp, bool dry_run)
+ {
++    if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID)
++    {
++         ptp->PSTSM_state = PSTSM_FORWARDING;
++         ptp->learning = false;
++         ptp->forwarding = true;
++         MSTP_OUT_set_state(ptp, BR_STATE_FORWARDING);
++         return true;
++    }
++
+     switch(ptp->PSTSM_state)
+     {
+         case PSTSM_DISCARDING:
+@@ -5079,6 +5121,7 @@ static bool __br_state_machines_run(bridge_t *br, bool dry_run)
+     {
+         FOREACH_PTP_IN_PORT(ptp, prt)
+         {
++            if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) continue;
+             if(PISM_run(ptp, dry_run) && dry_run)
+                 return true;
+         }
+@@ -5096,6 +5139,7 @@ static bool __br_state_machines_run(bridge_t *br, bool dry_run)
+     {
+         FOREACH_PTP_IN_PORT(ptp, prt)
+         {
++            if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) continue;
+             if(PRTSM_run(ptp, dry_run) && dry_run)
+                 return true;
+         }
+@@ -5105,6 +5149,7 @@ static bool __br_state_machines_run(bridge_t *br, bool dry_run)
+     {
+         FOREACH_PTP_IN_PORT(ptp, prt)
+         {
++            if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) continue;
+             if(PSTSM_run(ptp, dry_run) && dry_run)
+                 return true;
+         }
+@@ -5114,6 +5159,7 @@ static bool __br_state_machines_run(bridge_t *br, bool dry_run)
+     {
+         FOREACH_PTP_IN_PORT(ptp, prt)
+         {
++            if (__constant_be16_to_cpu(ptp->MSTID) == TE_MSTID) continue;
+             if(TCSM_run(ptp, dry_run) && dry_run)
+                 return true;
+         }
+diff --git a/mstp.h b/mstp.h
+index 983fd55..697dea5 100644
+--- a/mstp.h
++++ b/mstp.h
+@@ -55,6 +55,15 @@ extern bool MD5TestSuite(void);
+ #define MAX_FID         4095
+ #define MAX_MSTID       4094
+ 
++/* See 802.1Q, Sect. 8.6.1 */
++#define CIST_MSTID    ((__u16)0x0)
++#define TE_MSTID      ((__u16)0xFFE)
++#define SPBM_MSTID    ((__u16)0xFFC)
++#define SPBV_MSTID    ((__u16)0xFFD)
++#define INVALID_MSTID ((__u16)0xFFF)
++
++#define IS_RESERVED_MSTI(mstid)         ((mstid >= SPBM_MSTID) && (mstid < INVALID_MSTID))
++
+ /* MAX_xxx_MSTIS: CIST not counted */
+ #define MAX_STANDARD_MSTIS          64
+ #define MAX_IMPLEMENTATION_MSTIS    63
+-- 
+2.34.1
+

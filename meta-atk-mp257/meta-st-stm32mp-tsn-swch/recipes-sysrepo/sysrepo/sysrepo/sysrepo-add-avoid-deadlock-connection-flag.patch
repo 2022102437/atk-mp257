@@ -1,0 +1,72 @@
+From fdc35dd0e7764500b9535c332d1b5361f411382c Mon Sep 17 00:00:00 2001
+From: Jukka Partanen <jukka.partanen@tttech.com>
+Date: Tue, 20 Jun 2023 07:46:09 +0300
+Subject: [PATCH] Add new connection flag to avoid deadlocks
+
+When two threads use sr_apply_changes() to change configuration in
+datastore, a deadlock can happen. This is caused by the way sysrepo
+handles READ/WRITE locking for such changes: it always acquires a READ
+lock first, upgrading it to WRITE lock for the duration of
+sr_modinfo_data_store() call.
+
+This could happen for example when plugin uses separate sysrepo
+connection from custom thread to make changes to configuration in
+datastore at background, triggered by an external NETCONF request
+(sysrepo event in plugin).
+
+This change introduces a new connection flag and modifies
+sr_apply_changes() behavior when that flag is set. READ lock upgrade to
+WRITE lock is done by releasing the READ lock first, thus avoiding the
+deadlock. Such plugin threads can use this new connection flag.
+
+New flag was introduced to avoid changing existing behavior, so code
+which does not use the new flag will behave exactly the same with this
+code change applied.
+---
+ src/sysrepo.c | 13 +++++++++++--
+ src/sysrepo.h |  4 +++-
+ 2 files changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/src/sysrepo.c b/src/sysrepo.c
+index 18072a79..14fdf6be 100644
+--- a/src/sysrepo.c
++++ b/src/sysrepo.c
+@@ -2106,8 +2106,17 @@ sr_changes_notify_store(struct sr_mod_info_s *mod_info, sr_session_ctx_t *sessio
+     }
+ 
+     /* MODULES WRITE LOCK (upgrade) */
+-    if ((err_info = sr_shmmod_modinfo_rdlock_upgrade(mod_info, session->sid.sr))) {
+-        goto cleanup_unlock;
++    if (sr_session_get_connection(session)->opts & SR_CONN_AVOID_DEADLOCK) {
++        SR_LOG_DBG("%s() upgrade mod info to WRITE lock with deadlock workaround", __func__);
++        sr_shmmod_modinfo_unlock(mod_info);
++        if ((err_info = sr_shmmod_modinfo_wrlock(mod_info, session->sid.sr))) {
++            goto cleanup_unlock;
++        }
++        SR_LOG_DBG("%s() mod info upgraded to WRITE lock with deadlock workaround", __func__);
++    } else {
++        if ((err_info = sr_shmmod_modinfo_rdlock_upgrade(mod_info, session->sid.sr))) {
++            goto cleanup_unlock;
++        }
+     }
+ 
+     /* store updated datastore */
+diff --git a/src/sysrepo.h b/src/sysrepo.h
+index c84b97f4..42b855fe 100644
+--- a/src/sysrepo.h
++++ b/src/sysrepo.h
+@@ -182,8 +182,10 @@ typedef enum sr_conn_flag_e {
+                                          much faster. Affects all sessions created on this connection. */
+     SR_CONN_NO_SCHED_CHANGES = 2,   /**< Do not parse internal modules data and apply any scheduled changes. Makes
+                                          creating the connection faster but, obviously, scheduled changes are not applied. */
+-    SR_CONN_ERR_ON_SCHED_FAIL = 4   /**< If applying any of the scheduled changes fails, do not create a connection
++    SR_CONN_ERR_ON_SCHED_FAIL = 4,  /**< If applying any of the scheduled changes fails, do not create a connection
+                                          and return an error. */
++    SR_CONN_AVOID_DEADLOCK = 0x100  /**< Modify behavior of sr_apply_changes to avoid deadlocks for plugins which use
++                                         additional threads to make changes to datastore at the background. */
+ } sr_conn_flag_t;
+ 
+ /**
+-- 
+2.34.1
+

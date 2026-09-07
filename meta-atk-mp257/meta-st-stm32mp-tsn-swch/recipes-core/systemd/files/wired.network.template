@@ -1,0 +1,14 @@
+[Match]
+Type=ether
+Name=##ETHX## !veth*
+KernelCommandLine=!nfsroot
+KernelCommandLine=!ip
+
+[Network]
+DHCP=yes
+UseTimezone=false
+
+[DHCP]
+UseMTU=yes
+RouteMetric=10
+ClientIdentifier=mac

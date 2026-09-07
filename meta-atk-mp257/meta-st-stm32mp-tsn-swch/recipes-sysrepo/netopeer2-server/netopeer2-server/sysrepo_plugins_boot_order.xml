@@ -1,0 +1,14 @@
+<sysrepo-plugind xmlns="urn:sysrepo:plugind">
+    <plugin-order>
+        <plugin>libietf-interfaces</plugin>
+        <plugin>libieee802-dot1ab-lldp-yang-module</plugin>
+        <plugin>libieee802-dot1q-bridge-yang-module</plugin>
+        <plugin>libieee802-dot1q-fqtss</plugin>
+        <plugin>libieee8021-mstp</plugin>
+        <plugin>libietf-ptp</plugin>
+        <plugin>libieee802-dot1cb-stream-identification-yang-module</plugin>
+        <plugin>libieee802-dot1cb-stream-identification-params-yang-module</plugin>
+        <plugin>libieee802-dot1cb-frer-yang-module</plugin>
+        <plugin>libsysrepo-module-versions</plugin>
+    </plugin-order>
+</sysrepo-plugind>

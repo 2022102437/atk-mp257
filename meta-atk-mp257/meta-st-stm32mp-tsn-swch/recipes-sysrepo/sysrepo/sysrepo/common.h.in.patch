@@ -1,0 +1,61 @@
+diff --git a/src/common.h.in b/src/common.h.in
+index c6f1c1d..3fc9ae2 100644
+--- a/src/common.h.in
++++ b/src/common.h.in
+@@ -156,43 +156,43 @@ int pthread_mutex_timedlock(pthread_mutex_t *mutex, const struct timespec *absti
+ #define SR_EV_NOTIF_FILE_MAX_SIZE 1024
+ 
+ /** timeout for locking subscription structure lock, should be enough for a single ::sr_process_events() call (ms) */
+-#define SR_SUBSCR_LOCK_TIMEOUT 30000
++#define SR_SUBSCR_LOCK_TIMEOUT 100000
+ 
+ /** timeout for locking lydmods data for access; should be enough for parsing, applying any scheduled changes, and printing (ms) */
+-#define SR_LYDMODS_LOCK_TIMEOUT 5000
++#define SR_LYDMODS_LOCK_TIMEOUT 100000
+ 
+ /** timeout for locking notification buffer lock, used when adding/removing notifications (ms) */
+-#define SR_NOTIF_BUF_LOCK_TIMEOUT 100
++#define SR_NOTIF_BUF_LOCK_TIMEOUT 1000
+ 
+ /** timeout for locking subscription SHM; maximum time an event handling should take (ms) */
+-#define SR_SUBSHM_LOCK_TIMEOUT 10000
++#define SR_SUBSHM_LOCK_TIMEOUT 100000
+ 
+ /** timeout for locking ext SHM lock; time that truncating, writing into SHM but even recovering may take (ms) */
+-#define SR_EXT_LOCK_TIMEOUT 500
++#define SR_EXT_LOCK_TIMEOUT 1000
+ 
+ /** timeout for locking the local connection list; maximum time the list can be accessed (ms) */
+-#define SR_CONN_LIST_LOCK_TIMEOUT 100
++#define SR_CONN_LIST_LOCK_TIMEOUT 1000
+ 
+ /** timeout for locking connection remap lock; maximum time it can be continuously read/written to (ms) */
+-#define SR_CONN_REMAP_LOCK_TIMEOUT 10000
++#define SR_CONN_REMAP_LOCK_TIMEOUT 100000
+ 
+ /** timeout for locking (data of) a module; maximum time a module write lock is expected to be held (ms) */
+-#define SR_MOD_LOCK_TIMEOUT 5000
++#define SR_MOD_LOCK_TIMEOUT 100000
+ 
+ /** timeout for locking SHM module/RPC subscriptions; maxmum time full event processing may take (ms) */
+-#define SR_SHMEXT_SUB_LOCK_TIMEOUT 15000
++#define SR_SHMEXT_SUB_LOCK_TIMEOUT 100000
+ 
+ /** timeout for locking module cache (ms) */
+-#define SR_MOD_CACHE_LOCK_TIMEOUT 10000
++#define SR_MOD_CACHE_LOCK_TIMEOUT 100000
+ 
+ /** default timeout for change subscription callback (ms) */
+-#define SR_CHANGE_CB_TIMEOUT 5000
++#define SR_CHANGE_CB_TIMEOUT 100000
+ 
+ /** default timeout for operational subscription callback (ms) */
+-#define SR_OPER_CB_TIMEOUT 5000
++#define SR_OPER_CB_TIMEOUT 100000
+ 
+ /** default timeout for RPC/action subscription callback (ms) */
+-#define SR_RPC_CB_TIMEOUT 2000
++#define SR_RPC_CB_TIMEOUT 100000
+ 
+ /** group to own all directories/files */
+ #define SR_GROUP "@SYSREPO_GROUP@"

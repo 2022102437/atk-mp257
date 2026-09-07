@@ -1,0 +1,431 @@
+From 123ed13446173b88e4132ce483bd8e25a65266a4 Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@foss.st.com>
+Date: Wed, 31 Jan 2024 15:48:35 +0100
+Subject: [PATCH 6/6] drop_support_for_STP
+
+---
+ bridge_track.c |  31 ++-----
+ ctl_main.c     |   8 +-
+ mstp.c         | 216 +++++++++++--------------------------------------
+ mstp.h         |   4 +-
+ 4 files changed, 58 insertions(+), 201 deletions(-)
+
+diff --git a/bridge_track.c b/bridge_track.c
+index 3db93f1..ed71182 100644
+--- a/bridge_track.c
++++ b/bridge_track.c
+@@ -544,19 +544,7 @@ void MSTP_OUT_tx_bpdu(port_t *prt, bpdu_t * bpdu, int size)
+ 
+     switch(bpdu->protocolVersion)
+     {
+-        case protoSTP:
+-            switch(bpdu->bpduType)
+-            {
+-                case bpduTypeConfig:
+-                    bpdu_type = "STP-Config";
+-                    break;
+-                case bpduTypeTCN:
+-                    bpdu_type = "STP-TCN";
+-                    break;
+-                default:
+-                    bpdu_type = "STP-UnknownType";
+-            }
+-            break;
++        /* case protoSTP removed -> drop_support_for_STP.patch */
+         case protoRSTP:
+             bpdu_type = "RST";
+             break;
+@@ -568,21 +556,14 @@ void MSTP_OUT_tx_bpdu(port_t *prt, bpdu_t * bpdu, int size)
+     }
+ 
+     ++(prt->num_tx_bpdu);
+-    if((protoSTP == bpdu->protocolVersion) && (bpduTypeTCN == bpdu->bpduType))
++    /* if involving protoSTP removed -> drop_support_for_STP.patch */
++    tcflag = "";
++    if(bpdu->flags & (1 << offsetTc))
+     {
+         ++(prt->num_tx_tcn);
+-        LOG_PRTNAME(br, prt, "sending %s BPDU", bpdu_type);
+-    }
+-    else
+-    {
+-        tcflag = "";
+-        if(bpdu->flags & (1 << offsetTc))
+-        {
+-            ++(prt->num_tx_tcn);
+-            tcflag = ", tcFlag";
+-        }
+-        LOG_PRTNAME(br, prt, "sending %s BPDU%s", bpdu_type, tcflag);
++        tcflag = ", tcFlag";
+     }
++    LOG_PRTNAME(br, prt, "sending %s BPDU%s", bpdu_type, tcflag);
+ 
+     struct llc_header h;
+     memcpy(h.dest_addr, bridge_group_address, ETH_ALEN);
+diff --git a/ctl_main.c b/ctl_main.c
+index b8504e2..bd2e7a1 100644
+--- a/ctl_main.c
++++ b/ctl_main.c
+@@ -1597,8 +1597,9 @@ static int cmd_setbridgeforcevers(int argc, char *const *argv)
+     int br_index = get_index(argv[1], "bridge");
+     if(0 > br_index)
+         return br_index;
+-    const char *opts[] = { "stp", "rstp", "mstp", NULL };
+-    int vals[] = { protoSTP, protoRSTP, protoMSTP };
++    /* stp and protoSTP removed -> drop_support_for_STP.patch */
++    const char *opts[] = { "rstp", "mstp", NULL };
++    int vals[] = { protoRSTP, protoMSTP };
+     return set_bridge_cfg(protocol_version, vals[getenum(argv[2], opts)]);
+ }
+ 
+@@ -2286,7 +2287,8 @@ static const struct command commands[] =
+     {2, 0, "setageing", cmd_setbridgeageing,
+      "<bridge> <ageing_time>", "Set bridge ageing time (10-1000000)"},
+     {2, 0, "setforcevers", cmd_setbridgeforcevers,
+-     "<bridge> {mstp|rstp|stp}", "Force Spanning Tree protocol version"},
++     /* case stp removed -> drop_support_for_STP.patch */
++     "<bridge> {mstp|rstp}", "Force Spanning Tree protocol version"},
+     {2, 0, "settxholdcount", cmd_setbridgetxholdcount,
+      "<bridge> <tx_hold_count>", "Set bridge transmit hold count (1-10)"},
+     /* Set tree bridge */
+diff --git a/mstp.c b/mstp.c
+index 9ee7ceb..2e8b4ba 100644
+--- a/mstp.c
++++ b/mstp.c
+@@ -620,22 +620,8 @@ bpdu_validation_failed:
+     }
+     switch(bpdu->bpduType)
+     {
+-        case bpduTypeTCN:
+-            /* 14.4.b) */
+-            /* Valid TCN BPDU */
+-            bpdu->protocolVersion = protoSTP;
+-            LOG_PRTNAME(br, prt, "received TCN BPDU");
+-            break;
+-        case bpduTypeConfig:
+-            /* 14.4.a) */
+-            if(CONFIG_BPDU_SIZE > size)
+-                goto bpdu_validation_failed;
+-            /* Valid Config BPDU */
+-            bpdu->protocolVersion = protoSTP;
+-            LOG_PRTNAME(br, prt, "received Config BPDU%s",
+-                        (bpdu->flags & (1 << offsetTc)) ? ", tcFlag" : ""
+-                       );
+-            break;
++        /* case bpduTypeTCN removed -> drop_support_for_STP.patch */
++        /* case bpduTypeConfig removed -> drop_support_for_STP.patch */
+         case bpduTypeRST:
+             if(protoRSTP == bpdu->protocolVersion)
+             { /* 14.4.c) */
+@@ -685,15 +671,9 @@ bpdu_validation_failed:
+             goto bpdu_validation_failed;
+     }
+ 
+-    if((protoSTP == bpdu->protocolVersion) && (bpduTypeTCN == bpdu->bpduType))
+-    {
++    /* if involving protoSTP and bpduTypeTCN removed -> drop_support_for_STP.patch */
++    if(bpdu->flags & (1 << offsetTc))
+         ++(prt->num_rx_tcn);
+-    }
+-    else
+-    {
+-        if(bpdu->flags & (1 << offsetTc))
+-            ++(prt->num_rx_tcn);
+-    }
+ 
+     assign(prt->rcvdBpduData, *bpdu);
+     prt->rcvdBpdu = true;
+@@ -810,7 +790,7 @@ int MSTP_IN_set_cist_bridge_config(bridge_t *br, CIST_BridgeConfig *cfg)
+     {
+         switch(cfg->protocol_version)
+         {
+-            case protoSTP:
++            /* case protoSTP removed -> drop_support_for_STP.patch */
+             case protoRSTP:
+             case protoMSTP:
+                 break;
+@@ -1855,45 +1835,40 @@ static port_info_t rcvInfo(per_tree_port_t *ptp)
+ 
+     if(0 == ptp->MSTID)
+     { /* CIST */
+-        if(protoSTP != b->protocolVersion)
++        /* if involving protoSTP removed -> drop_support_for_STP.patch */
++        switch(BPDU_FLAGS_ROLE_GET(b->flags))
+         {
+-            switch(BPDU_FLAGS_ROLE_GET(b->flags))
+-            {
+-                case encodedRoleAlternateBackup:
+-                case encodedRoleRoot:
+-                    roleIsDesignated = false;
+-                    break;
+-                case encodedRoleDesignated:
++            case encodedRoleAlternateBackup:
++            case encodedRoleRoot:
++                roleIsDesignated = false;
++                break;
++            case encodedRoleDesignated:
++                roleIsDesignated = true;
++                break;
++            case encodedRoleMaster:
++                /* 802.1D-2004 S9.2.9 P61. The Unknown value of Port Role
++                 * cannot be generated by a valid implementation; however,
++                 * this value is accepted on receipt. roleMaster in MSTP is
++                 * roleUnknown in RSTP.
++                 * NOTE.If the Unknown value of the Port Role parameter is
++                 * received, the state machines will effectively treat the RST
++                 * BPDU as if it were a Configuration BPDU
++                 */
++                if(protoRSTP == b->protocolVersion)
++                {
+                     roleIsDesignated = true;
+                     break;
+-                case encodedRoleMaster:
+-                    /* 802.1D-2004 S9.2.9 P61. The Unknown value of Port Role
+-                     * cannot be generated by a valid implementation; however,
+-                     * this value is accepted on receipt. roleMaster in MSTP is
+-                     * roleUnknown in RSTP.
+-                     * NOTE.If the Unknown value of the Port Role parameter is
+-                     * received, the state machines will effectively treat the RST
+-                     * BPDU as if it were a Configuration BPDU
+-                     */
+-                    if(protoRSTP == b->protocolVersion)
+-                    {
+-                        roleIsDesignated = true;
+-                        break;
+-                    }
+-                    else
+-                    {
+-                        return OtherInfo;
+-                    }
+-                    break;
+-                default:
++                }
++                else
++                {
+                     return OtherInfo;
+-            }
+-        }
+-        else
+-        { /* 13.26.6.NOTE: A Configuration BPDU implicitly conveys a
+-           *   Designated Port Role */
+-            roleIsDesignated = true;
+-        }
++                }
++                break;
++            default:
++                return OtherInfo;
++         }
++        /* else involving protoSTP removed -> drop_support_for_STP.patch */
++
+         cist = true;
+ 
+         assign(mPri->RRootID, b->cistRRootID);
+@@ -2346,39 +2321,7 @@ static void syncMaster(bridge_t *br)
+ }
+ 
+ /* 13.26.19 txConfig */
+-static void txConfig(port_t *prt)
+-{
+-    bpdu_t b;
+-    per_tree_port_t *cist = GET_CIST_PTP_FROM_PORT(prt);
+-
+-    if(prt->deleted || (roleDisabled == cist->role) || prt->dontTxmtBpdu)
+-        return;
+-
+-    b.protocolIdentifier = 0;
+-    b.protocolVersion = protoSTP;
+-    b.bpduType = bpduTypeConfig;
+-    /* Standard says "tcWhile ... for the Port". Which one tcWhile?
+-     * I guess that this means tcWhile for the CIST.
+-     * But that is only a guess and I could be wrong here ;)
+-     */
+-    b.flags = (0 != cist->tcWhile) ? (1 << offsetTc) : 0;
+-    if(prt->tcAck)
+-        b.flags |= (1 << offsetTcAck);
+-    assign(b.cistRootID, cist->designatedPriority.RootID);
+-    assign(b.cistExtRootPathCost, cist->designatedPriority.ExtRootPathCost);
+-    assign(b.cistRRootID, cist->designatedPriority.DesignatedBridgeID);
+-    assign(b.cistPortID, cist->designatedPriority.DesignatedPortID);
+-    b.MessageAge[0] = cist->designatedTimes.Message_Age;
+-    b.MessageAge[1] = 0;
+-    b.MaxAge[0] = cist->designatedTimes.Max_Age;
+-    b.MaxAge[1] = 0;
+-    b.HelloTime[0] = cist->portTimes.Hello_Time; /* ! use portTimes ! */
+-    b.HelloTime[1] = 0;
+-    b.ForwardDelay[0] = cist->designatedTimes.Forward_Delay;
+-    b.ForwardDelay[1] = 0;
+-
+-    MSTP_OUT_tx_bpdu(prt, &b, CONFIG_BPDU_SIZE);
+-}
++/* txConfig removed -> drop_support_for_STP.patch */
+ 
+ static inline __u8 message_role_from_port_role(per_tree_port_t *ptp)
+ {
+@@ -2506,20 +2449,7 @@ static void txMstp(port_t *prt)
+ }
+ 
+ /* 13.26.a) txTcn */
+-static void txTcn(port_t *prt)
+-{
+-    bpdu_t b;
+-    per_tree_port_t *cist = GET_CIST_PTP_FROM_PORT(prt);
+-
+-    if(prt->deleted || (roleDisabled == cist->role) || prt->dontTxmtBpdu)
+-        return;
+-
+-    b.protocolIdentifier = 0;
+-    b.protocolVersion = protoSTP;
+-    b.bpduType = bpduTypeTCN;
+-
+-    MSTP_OUT_tx_bpdu(prt, &b, TCN_BPDU_SIZE);
+-}
++/* txTcn removed -> drop_support_for_STP.patch */
+ 
+ /* 13.26.21 updtBPDUVersion */
+ static void updtBPDUVersion(port_t *prt)
+@@ -2987,15 +2917,7 @@ static void PPMSM_to_CHECKING_RSTP(port_t *prt/*, bool begin*/)
+      *     PPMSM_run(prt, false); */
+ }
+ 
+-static void PPMSM_to_SELECTING_STP(port_t *prt)
+-{
+-    prt->PPMSM_state = PPMSM_SELECTING_STP;
+-
+-    prt->sendRSTP = false;
+-    assign(prt->mdelayWhile, prt->bridge->Migrate_Time);
+-
+-    PPMSM_run(prt, false /* actual run */);
+-}
++/* PPMSM_to_SELECTING_STP removed -> drop_support_for_STP.patch */
+ 
+ static void PPMSM_to_SENSING(port_t *prt)
+ {
+@@ -3029,14 +2951,7 @@ static bool PPMSM_run(port_t *prt, bool dry_run)
+                 PPMSM_to_SENSING(prt);
+             }
+             return false;
+-        case PPMSM_SELECTING_STP:
+-            if(0 == prt->mdelayWhile || !prt->portEnabled || prt->mcheck)
+-            {
+-                if(dry_run) /* state change */
+-                    return true;
+-                PPMSM_to_SENSING(prt);
+-            }
+-            return false;
++        /* case PPMSM_SELECTING_STP removed -> drop_support_for_STP.patch */
+         case PPMSM_SENSING:
+             if(!prt->portEnabled || prt->mcheck
+                || (rstpVersion(br) && !prt->sendRSTP && prt->rcvdRSTP))
+@@ -3046,12 +2961,7 @@ static bool PPMSM_run(port_t *prt, bool dry_run)
+                 PPMSM_to_CHECKING_RSTP(prt);
+                 return false;
+             }
+-            if(prt->sendRSTP && prt->rcvdSTP)
+-            {
+-                if(dry_run) /* state change */
+-                    return true;
+-                PPMSM_to_SELECTING_STP(prt);
+-            }
++            /* if involving PPMSM_to_SELECTING_STP call removed -> drop_support_for_STP.patch */
+             return false;
+     }
+ 
+@@ -3152,28 +3062,8 @@ static bool PTSM_to_TRANSMIT_INIT(port_t *prt, bool begin, bool dry_run)
+     return false;
+ }
+ 
+-static void PTSM_to_TRANSMIT_CONFIG(port_t *prt)
+-{
+-    prt->PTSM_state = PTSM_TRANSMIT_CONFIG;
+-
+-    prt->newInfo = false;
+-    txConfig(prt);
+-    ++(prt->txCount);
+-    prt->tcAck = false;
+-
+-    PTSM_run(prt, false /* actual run */);
+-}
+-
+-static void PTSM_to_TRANSMIT_TCN(port_t *prt)
+-{
+-    prt->PTSM_state = PTSM_TRANSMIT_TCN;
+-
+-    prt->newInfo = false;
+-    txTcn(prt);
+-    ++(prt->txCount);
+-
+-    PTSM_run(prt, false /* actual run */);
+-}
++/* PTSM_to_TRANSMIT_CONFIG removed -> drop_support_for_STP.patch */
++/* PTSM_to_TRANSMIT_TCN removed -> drop_support_for_STP.patch */
+ 
+ static void PTSM_to_TRANSMIT_RSTP(port_t *prt)
+ {
+@@ -3231,7 +3121,7 @@ static bool PTSM_run(port_t *prt, bool dry_run)
+ {
+    /* bool allTransmitReady; */
+     per_tree_port_t *ptp;
+-    port_role_t cistRole;
++    /* cistRole removed as not used anymore -> drop_support_for_STP.patch */
+     bool mstiMasterPort;
+ 
+     if(!prt->portEnabled)
+@@ -3262,7 +3152,7 @@ static bool PTSM_run(port_t *prt, bool dry_run)
+                 /* allTransmitReady = false; */
+                 return false;
+             }
+-            cistRole = ptp->role;
++            /* cistRole assignment removed as not used anymore -> drop_support_for_STP.patch */
+             mstiMasterPort = false;
+             list_for_each_entry_continue(ptp, &prt->trees, port_list)
+             {
+@@ -3299,23 +3189,7 @@ static bool PTSM_run(port_t *prt, bool dry_run)
+                     return false;
+                 }
+             }
+-            else
+-            { /* fallback to STP */
+-                if(prt->newInfo && (roleDesignated == cistRole))
+-                {
+-                    if(dry_run) /* state change */
+-                        return true;
+-                    PTSM_to_TRANSMIT_CONFIG(prt);
+-                    return false;
+-                }
+-                if(prt->newInfo && (roleRoot == cistRole))
+-                {
+-                    if(dry_run) /* state change */
+-                        return true;
+-                    PTSM_to_TRANSMIT_TCN(prt);
+-                    return false;
+-                }
+-            }
++            /* else removed involving fallback to STP -> drop_support_for_STP.patch */
+             return false;
+     }
+ 
+diff --git a/mstp.h b/mstp.h
+index 697dea5..65b9c77 100644
+--- a/mstp.h
++++ b/mstp.h
+@@ -216,7 +216,7 @@ typedef enum
+ 
+ typedef enum
+ {
+-    protoSTP = 0,
++    /* protoSTP removed -> drop_support_for_STP.patch */
+     protoRSTP = 2,
+     protoMSTP = 3
+ } protocol_version_t;
+@@ -264,7 +264,7 @@ typedef enum
+ typedef enum
+ {
+     PPMSM_CHECKING_RSTP,
+-    PPMSM_SELECTING_STP,
++    /* PPMSM_SELECTING_STP removed -> drop_support_for_STP.patch */
+     PPMSM_SENSING
+ } PPMSM_states_t;
+ 
+-- 
+2.34.1
+

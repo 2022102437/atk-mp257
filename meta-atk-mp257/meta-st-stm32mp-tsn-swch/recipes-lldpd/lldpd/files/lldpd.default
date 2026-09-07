@@ -1,0 +1,3 @@
+# Uncomment to start SNMP subagent and enable CDP, SONMP and EDP protocol For now enable SNMP agent (-x) and force to send LLDP even if no LLDP peer is detected (-l)
+#DAEMON_ARGS="-x -l -X/var/run/agentx_socket -I*,!sw0ep*,!eth*,!sw0p1* -m!192.168.0.1"
+DAEMON_ARGS="-l -I*,!sw0ep*,!eth*,!sw0p1* -m!192.168.0.1"

@@ -1,0 +1,11 @@
+[Unit]
+Description=TSN service
+After=network.target systemd-networkd.service st-init-switch.service
+
+[Service]
+Type=forking
+ExecStart=/usr/sbin/ttt-ip-init-tsn-networkd-systemd.sh start
+ExecStop=/usr/sbin/ttt-ip-init-tsn-networkd-systemd.sh stop
+
+[Install]
+WantedBy=multi-user.target

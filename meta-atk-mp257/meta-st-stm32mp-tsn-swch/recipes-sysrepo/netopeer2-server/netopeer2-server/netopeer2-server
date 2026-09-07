@@ -1,0 +1,89 @@
+#!/bin/sh
+
+# Source function library.
+. /etc/init.d/functions
+
+sysrepo_ready="/run/sysrepo-plugind.ready"
+
+init_server() {
+    rm -rf /dev/shm/sr_* /dev/shm/srsub_*
+    /usr/share/netopeer2-server/setup.sh /usr/bin/sysrepoctl /usr/bin/sysrepocfg /etc/netopeer2/yang/ root > /var/log/sysrepo.log 2>&1
+    touch /etc/netopeer2/server
+}
+
+setup_ssh() {
+    /usr/share/netopeer2-server/install_ssh_key.sh
+    /usr/share/netopeer2-server/enable_ssh.sh
+    touch /etc/netopeer2/ssh_key_installed
+}
+
+setup_tls() {
+    /usr/share/netopeer2-server/install_and_enable_tls.sh
+    touch /etc/netopeer2/tls_listen_enabled
+}
+
+wait_sysrepo_ready() {
+    # NOTE: Some implementations of pidof do not work here.
+    timeout=120
+    while test $timeout -gt 0 ; do
+        if ! ps -C sysrepo-plugind > /dev/null 2>&1 ; then
+            echo "ERROR: sysrepo-plugind did not start"
+            return 1
+        fi
+        test ! -e $sysrepo_ready || return 0
+        timeout=$(($timeout - 1))
+        sleep 1
+    done
+    echo "WARNING: sysrepo-plugind not yet ready!"
+}
+
+case "$1" in
+    start)
+        test -r /etc/netopeer2/server || init_server
+        # start sysrepo pluging daemon, this has to be done AFTER installing the modules apparently
+        test -r /etc/netopeer2/ssh_key_installed || setup_ssh
+        test -r /etc/netopeer2/tls_listen_enabled || setup_tls
+        rm -f $sysrepo_ready
+        sysrepo-plugind -v3 -d >> /var/log/sysrepo.log 2>&1 &
+        wait_sysrepo_ready
+        netopeer2-server -v2 -d -t 500 > /var/log/netopeer2-server.log 2>&1 &
+        ;;
+    stop)
+        #kill netopeer2-server
+        PID=$(pidof netopeer2-server)
+        if [ "" !=  "$PID" ]
+        then
+            echo "killing netopeer2-server ($PID)"
+            kill -9 $PID
+        else
+            echo "Process netopeer2-server does not exist!"
+        fi
+        #kill sysrepo-plugind
+        PID=$(pidof sysrepo-plugind)
+        if [ "" !=  "$PID" ]
+        then
+            echo "killing sysrepo-plugind ($PID)"
+            kill -9 $PID
+        else
+            echo "Process sysrepo-plugind does not exist!"
+        fi
+        ;;
+    restart)
+        $0 stop
+        $0 start
+        ;;
+    restore)
+        $0 stop
+        rm touch /etc/netopeer2/ssh_key_installed
+        rm /etc/ssh/ssh_host_rsa_key
+        touch /etc/netopeer2/server
+        if [ -e /etc/sysrepo/restore_datastore ]; then
+            /etc/sysrepo/restore_datastore
+        fi
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|restore}"
+        exit 1;;
+esac
+
+exit 0

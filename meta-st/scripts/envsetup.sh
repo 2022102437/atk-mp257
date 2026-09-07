@@ -777,8 +777,10 @@ conf_bblayerconf()
         # Get meta layer root for selected machine file
         local _BSP_LAYER_REQUIRED=$(echo ${_MACH_CONF} | sed -n 's|.*'"$_META_LAYER_ROOT"'\/\(.*\)\/conf\/machine\/.*|\1|p')
         # Get any specific needed layer in machine file
+        # (tag may be repeated on several consecutive comment lines, no '\' continuation
+        #  since bitbake treats trailing '\' in a comment as a line-continuation)
         local _LAYERS=$(grep '^#@NEEDED_BSPLAYERS:' $_MACH_CONF)
-        local _BSP=$(echo ${_LAYERS} |cut -f 2 -d ':')
+        local _BSP=$(echo "${_LAYERS}" | sed -e 's/^#@NEEDED_BSPLAYERS:[ \t]*//' | tr '\n' ' ')
         # Filter for layer not yet available in current bblayers.conf file
         if [ -n "${_BSP}" ]; then
             unset LAYERS_2SET

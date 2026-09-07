@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PTP_config xmlns="http://flexibilis.com/schema/ptp/1.0/config">
+  <config_ver>1.6</config_ver>
+  <General>
+    <debug>0</debug>
+  </General>
+  <Interface name="sw0p2">
+    <profile>gptp</profile>
+    <mode>ordinary</mode>
+    <delay>p2p</delay>
+  </Interface>
+  <Interface name="sw0p3">
+    <profile>gptp</profile>
+    <mode>ordinary</mode>
+    <delay>p2p</delay>
+  </Interface>
+  <Basic>
+    <one_step_clock>0</one_step_clock>
+  </Basic>
+  <Clock>
+    <clock_class>187</clock_class>
+    <clock_accuracy>1us</clock_accuracy>
+    <clock_priority1>248</clock_priority1>
+    <clock_priority2>248</clock_priority2>
+    <domain>0</domain>
+    <time_source>internal oscillator</time_source>
+  </Clock>
+</PTP_config>

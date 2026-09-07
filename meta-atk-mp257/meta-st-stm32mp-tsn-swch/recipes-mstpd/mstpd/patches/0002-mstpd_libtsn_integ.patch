@@ -1,0 +1,73 @@
+From 8c9eda28ed4a8c5046bbe1f7cc8ebc6e7c2d8853 Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@foss.st.com>
+Date: Wed, 31 Jan 2024 15:17:09 +0100
+Subject: [PATCH 2/6] mstpd_libtsn_integ
+
+---
+ bridge_track.c | 8 ++++++--
+ driver.h       | 3 +++
+ mstp.c         | 3 +++
+ 3 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/bridge_track.c b/bridge_track.c
+index 8803429..8ddbb75 100644
+--- a/bridge_track.c
++++ b/bridge_track.c
+@@ -809,13 +809,17 @@ int CTL_get_fids2mstids(int br_index, __u16 *fids2mstids)
+ int CTL_set_vid2fid(int br_index, __u16 vid, __u16 fid)
+ {
+     CTL_CHECK_BRIDGE;
+-    return MSTP_IN_set_vid2fid(br, vid, fid) ? 0 : -1;
++    if ((!driver_set_vid2fid(br, vid, fid)) || (!MSTP_IN_set_vid2fid(br, vid, fid)))
++        return -1;
++    return 0;
+ }
+ 
+ int CTL_set_fid2mstid(int br_index, __u16 fid, __u16 mstid)
+ {
+     CTL_CHECK_BRIDGE;
+-    return MSTP_IN_set_fid2mstid(br, fid, mstid) ? 0 : -1;
++    if((!driver_set_fid2mstid(br, fid, mstid)) || (!MSTP_IN_set_fid2mstid(br, fid, mstid)))
++        return -1;
++    return 0;
+ }
+ 
+ int CTL_set_vids2fids(int br_index, __u16 *vids2fids)
+diff --git a/driver.h b/driver.h
+index ddfe4fc..94fc946 100644
+--- a/driver.h
++++ b/driver.h
+@@ -12,6 +12,9 @@
+ #ifndef _MSTP_DRIVER_H
+ #define _MSTP_DRIVER_H
+ 
++bool driver_set_fid2mstid(bridge_t *br, __u16 fid, __u16 mstid);
++bool driver_set_vid2fid(bridge_t *br, __u16 vid, __u16 fid);
++
+ int driver_set_new_state(per_tree_port_t *ptp, int new_state);
+ void driver_flush_all_fids(per_tree_port_t *ptp);
+ unsigned int driver_set_ageing_time(port_t *prt, unsigned int ageingTime);
+diff --git a/mstp.c b/mstp.c
+index cd579fc..801fc74 100644
+--- a/mstp.c
++++ b/mstp.c
+@@ -1330,6 +1330,8 @@ bool MSTP_IN_set_all_vids2fids(bridge_t *br, __u16 *vids2fids)
+         }
+         if(br->fid2mstid[vids2fids[vid]] != br->fid2mstid[br->vid2fid[vid]])
+             vid2mstid_changed = true;
++
++        driver_set_vid2fid(br, vid, vids2fids[vid]);
+     }
+     memcpy(br->vid2fid, vids2fids, sizeof(br->vid2fid));
+     if(vid2mstid_changed)
+@@ -1412,6 +1414,7 @@ bool MSTP_IN_set_all_fids2mstids(bridge_t *br, __u16 *fids2mstids)
+             if(tree->MSTID == MSTID[fid])
+             {
+                 found = true;
++                driver_set_fid2mstid(br, fid, __be16_to_cpu(MSTID[fid]));
+                 break;
+             }
+         }
+-- 
+2.34.1
+

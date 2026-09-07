@@ -1,0 +1,897 @@
+#!/usr/bin/python3
+#
+# Copyright (c) 2024 STMicroelectronics.
+# All rights reserved.
+#
+# This software is licensed under terms that can be found in the LICENSE file
+# in the root directory of this software component.
+# If no LICENSE file comes with this software, it is provided AS-IS.
+
+import serial
+import ctypes
+import time
+import subprocess
+import threading
+from struct import pack, unpack
+from enum import Enum
+
+# Define constants
+PACKET_SIZE = 512
+
+class CmdOperation(Enum):
+  CMD_OP_SET           = 0x00
+  CMD_OP_GET           = 0x01
+  CMD_OP_SET_OK        = 0x80
+  CMD_OP_SET_FAILURE   = 0x81
+  CMD_OP_GET_OK        = 0x82
+  CMD_OP_GET_FAILURE   = 0x83
+
+class CmdID(Enum):
+  CMD_STATREMOVAL         = 0x00
+  CMD_DECIMATION          = 0x01
+  CMD_DEMOSAICING         = 0x02
+  CMD_CONTRAST            = 0x03
+  CMD_STATISTICAREA       = 0x04
+  CMD_SENSORGAIN          = 0x05
+  CMD_SENSOREXPOSURE      = 0x06
+  CMD_BADPIXELALGO        = 0x07
+  CMD_BADPIXELSTATIC      = 0x08
+  CMD_BLACKLEVELSTATIC    = 0x09
+  CMD_AECALGO             = 0x0A
+  CMD_AWBALGO             = 0x0B
+  CMD_AWBPROFILE          = 0x0C
+  CMD_ISPGAINSTATIC       = 0x0D
+  CMD_COLORCONVSTATIC     = 0x0E
+  CMD_STATISTICUP         = 0x0F
+  CMD_STATISTICDOWN       = 0x10
+  CMD_DUMP_PREVIEW_FRAME  = 0x11
+  CMD_DUMP_ISP_FRAME      = 0x12
+  CMD_DUMP_RAW_FRAME      = 0x13
+  CMD_STOPPREVIEW         = 0x14
+  CMD_STARTPREVIEW        = 0x15
+  CMD_DCMIPPVERSION       = 0x16
+  CMD_GAMMA               = 0x17
+  CMD_SENSORINFO          = 0x18
+  CMD_SENSORTESTPATTERN   = 0x19
+  CMD_SENSORDELAY         = 0x1A
+  CMD_SENSORDELAYMEASURE  = 0x1B
+  CMD_FIRMWARE_CONFIG     = 0x1C
+  CMD_UNIQUE_GAMMA        = 0x1D
+  CMD_LUXREF              = 0x1E
+  CMD_AWBCOLORTEMP        = 0x1F
+  CMD_HOST_OS_TYPE        = 0x20
+#Application API commands for test purpose
+  CMD_USER_EXPOSURETARGET = 0x80
+  CMD_USER_LISTWBREFMODES = 0x81
+  CMD_USER_WBREFMODE      = 0x82
+  CMD_USER_GETDECIMATION  = 0x83
+  CMD_USER_STATISTICAREA  = 0x84
+  CMD_USER_LUX            = 0x85
+# Frame data command
+  CMD_FRAMEDATA           = 0xFE
+# Metadata Output command
+  CMD_METADATA_OUTPUT     = 0xFF
+
+class IQTuneCom():
+    """
+    Class that handles communication between the application and the host computer
+    """
+    def __init__(self, app):
+        self._app = app
+        self._cleanup = False
+        self._comport = '/dev/ttyGS0'
+        self._baudrate = 115200
+        self._ser = None
+        self._original_statistic_profile = None
+        self._ref_color_set = 0
+
+        # Disable ethernet usb gadget if already set
+        cmd = 'su -c "stm32_usbotg_eth_config.sh stop"'
+        ret = subprocess.run(cmd, shell=True)
+        if ret.returncode != 0:
+            print("Fail to disable ethernet usb gadget")
+        # If MP21 platform is detected, the UVC is not yet supported so only enable the ACM gadget for USB serial communication.
+        # Else enable ACM gadget for USB serial communication and UVC gadget for UVC livepreview providing the targeted width, height and fps of the UVC profile
+        if self._app.device.startswith("STM32MP21") or self._app.no_uvc:
+            cmd = 'su -c "stm32_usbotg_acm_config.sh restart"'
+            ret = subprocess.run(cmd, shell=True)
+            if ret.returncode != 0:
+                print("Fail to enable ACM usb gadget")
+                exit(1)
+        else:
+            cmd = 'su -c "stm32_usbotg_acm_uvc_config.sh restart ' + str(self._app.preview_width) + ' ' + str(self._app.preview_height) + ' ' + str(self._app.sensor_fps_max) + '"'
+            ret = subprocess.run(cmd, shell=True)
+            if ret.returncode != 0:
+                print("Fail to enable ACM and UVC usb gadgets")
+                exit(1)
+
+    def __del__(self):
+        self._close()
+        # Keep ACM and UVC gadget configfs alive.
+        # Let user performs a manual action to reenable the USB eth gadget.
+
+    def _open(self):
+        if self._ser is None or not self._ser.is_open:
+            self._ser = serial.Serial(self._comport, self._baudrate)
+
+    def _close(self):
+        if self._ser is not None:
+            self._ser.close()
+            self._ser = None
+
+    def _get_data(self):
+        self._open()
+        try:
+            nb_bytes = self._ser.in_waiting
+            if nb_bytes > 0:
+                # Get first packet
+                total_data = b''
+                data = self._ser.read(size=nb_bytes)
+                total_data += data
+                # Check if the first packet is less than PACKET_SIZE
+                if len(total_data) < PACKET_SIZE:
+                    # Wait for the second packet
+                    timeout = 2
+                    start_time = time.time()
+                    while (time.time() - start_time) < timeout:
+                        nb_bytes = self._ser.in_waiting
+                        if nb_bytes > 0:
+                            # Read the second packet and append it to total_data
+                            data = self._ser.read(size=nb_bytes)
+                            total_data += data
+                            break
+
+                # Check if the total size is PACKET_SIZE
+                if len(total_data) != PACKET_SIZE:
+                    print(f"Warning: Total packet size is {len(total_data)} bytes, expected {PACKET_SIZE} bytes.")
+
+                # Debug: Print the number of bytes received and the data
+                #print("get data nb_bytes=" + str(len(total_data)))
+                #print(total_data)
+
+                return total_data
+        except:
+            # serial error detected
+            if self._ser.is_open:
+                self._close()
+        return
+
+    def _send_data(self, data):
+        self._open()
+        try:
+            #print("send data")
+            #print(data)
+            self._ser.write(data)
+            self._ser.flush()
+        except:
+            # serial error detected
+            if self._ser.is_open:
+                self._close()
+        return
+
+    def _store_original_statistic_profile(self):
+        if self._original_statistic_profile is None:
+            self._original_statistic_profile = self._app.gst_widget.get_libcamera_property('statistic-profile')
+
+    def _restore_statistic_profile(self):
+        # this function is called in a thread to restore the statistic profile
+        # after a sleep of 1.5 seconds so that the algorithm are not slow down
+        # anymore by the full stats profile.
+        time.sleep(1.5)  # Wait for 1.5 seconds
+        if self._original_statistic_profile is not None:
+            self._app.gst_widget.set_libcamera_property('statistic-profile', self._original_statistic_profile)
+
+    def cleanup(self):
+        self._cleanup = True
+        self.__del__()
+
+    def cmd_parser_setconfig(self, data):
+        """
+        set config requested
+        """
+        # Depending on the field structure used, alignement is done on a uint32 word for the enable field.
+        # For some configuration, the enable value is coded on a single byte or a uint32 word to match the
+        # structure alignment from uint8 to uint32 transition.
+        ret = 0
+        tempo = 0
+        values = []
+        cmd = data[1]
+        if cmd == CmdID.CMD_STATREMOVAL.value:
+            # Statistic removal not supported with the IQTune desktop application.
+            # The statistic removal is managed by the entry pad of the ISP subdev using the crop property
+            # ex: media-ctl -d $media_dev --set-v4l2 "'dcmipp_main_isp':0[crop:(0,5)/1280x713]"
+            # This command return an error
+            ret = 1
+
+        elif cmd == CmdID.CMD_DEMOSAICING.value:
+            # retrieve values from the command
+            enable = data[4]
+            if enable:
+                val = unpack('4B', data[6:10]) # Skip the bayer pattern type which is already programmed and cannot be changed
+                self._app.gst_widget.set_libcamera_property('demosaicing-filters', val)
+            self._app.gst_widget.set_libcamera_property('demosaicing-enable', enable)
+
+        elif cmd == CmdID.CMD_CONTRAST.value:
+            # retrieve values from the command
+            enable = data[4]
+            if enable:
+                values = unpack('<9I', data[8:44]) # padding byte inserted data[5:8] by the ctype structure alignment
+                self._app.gst_widget.set_libcamera_property('contrast-values', values)
+            self._app.gst_widget.set_libcamera_property('contrast-enable', enable)
+
+        elif cmd == CmdID.CMD_STATISTICAREA.value or cmd == CmdID.CMD_USER_STATISTICAREA.value:
+            # retrieve values from the command
+            values = unpack('<4I', data[4:20])
+            self._app.gst_widget.set_libcamera_property('statistic-area', values)
+            tempo = 0.8 # add tempo when stat area is set to ensure that the statistic values are computed before receiving a get stat command.
+
+        elif cmd == CmdID.CMD_SENSORGAIN.value:
+            # retrieve values from the command
+            val = unpack('<1I', data[4:8])[0]
+            self._app.gst_widget.set_libcamera_property('sensor-gain', float(val)/1000) # convert from mdB to dB
+
+        elif cmd == CmdID.CMD_SENSOREXPOSURE.value:
+            # retrieve values from the command
+            val = unpack('<1I', data[4:8])[0]
+            self._app.gst_widget.set_libcamera_property('sensor-exposure', val)
+
+        elif cmd == CmdID.CMD_BADPIXELALGO.value:
+            # retrieve values from the command
+            enable = data[4]
+            if enable:
+                val = unpack('<1I', data[8:12])[0] # padding byte inserted data[5:8] by the ctype structure alignment
+                self._app.gst_widget.set_libcamera_property('badpixel-algo-threshold', val)
+            else:
+                self._app.gst_widget.set_libcamera_property('badpixel-algo-threshold', 0)
+
+        elif cmd == CmdID.CMD_BADPIXELSTATIC.value:
+            # retrieve values from the command
+            enable = data[4]
+            if enable:
+                val = data[5]
+                self._app.gst_widget.set_libcamera_property('badpixel-strength', val)
+            self._app.gst_widget.set_libcamera_property('badpixel-enable', enable)
+
+        elif cmd == CmdID.CMD_BLACKLEVELSTATIC.value:
+            # retrieve values from the command
+            enable = data[4]
+            if enable:
+                values = unpack('3B', data[5:8])
+                self._app.gst_widget.set_libcamera_property('black-level-values', values)
+            self._app.gst_widget.set_libcamera_property('black-level-enable', enable)
+
+        elif cmd == CmdID.CMD_AECALGO.value:
+            # retrieve values from the command
+            enable = data[4]
+            if enable:
+                val = data[5]
+                # convert the exposure compensation enum into float value
+                if ctypes.c_int8(val).value == -4:
+                    val = -2.0
+                elif ctypes.c_int8(val).value == -3:
+                    val = -1.5
+                elif ctypes.c_int8(val).value == -2:
+                    val = -1.0
+                elif ctypes.c_int8(val).value == -1:
+                    val = -0.5
+                elif ctypes.c_int8(val).value == 0:
+                    val = 0.0
+                elif ctypes.c_int8(val).value == 1:
+                    val = 0.5
+                elif ctypes.c_int8(val).value == 2:
+                    val = 1.0
+                elif ctypes.c_int8(val).value == 3:
+                    val = 1.5
+                elif ctypes.c_int8(val).value == 4:
+                    val = 2.0
+                self._app.gst_widget.set_libcamera_property('aec-algo-exposure-compensation', val)
+                freq = unpack('<1I', data[12:16])[0]
+                self._app.gst_widget.set_libcamera_property('aec-algo-antiflicker-frequency', freq)
+            self._app.gst_widget.set_libcamera_property('aec-algo-enable', enable)
+
+        elif cmd == CmdID.CMD_AWBALGO.value:
+            # retrieve values from the command
+            enable = data[4]
+            if enable:
+                profileNames = []
+                profileNames.append(data[5:37].decode('utf-8'))    #
+                profileNames.append(data[37:69].decode('utf-8'))   #
+                profileNames.append(data[69:101].decode('utf-8'))  # 5 profiles ID of 32 characters (32 bytes)
+                profileNames.append(data[101:133].decode('utf-8')) #
+                profileNames.append(data[133:165].decode('utf-8')) #
+                self._app.gst_widget.set_libcamera_property('awb-algo-profile-names', profileNames)
+                # padding byte inserted data[165:168] by the ctype structure alignment
+                refColorTemps = unpack('<5I', data[168:188]) # 5 reference color temperature values of 4 bytes
+                self._app.gst_widget.set_libcamera_property('awb-algo-profile-color-temps', refColorTemps)
+                ispGains = unpack('<15I', data[188:248]) # 5 ISP gain profile of 3 values of 4 bytes
+                self._app.gst_widget.set_libcamera_property('awb-algo-profile-isp-gains', ispGains)
+                ccmCoeffs = unpack('<45i', data[248:428]) # 5 CCM of 3x3 values of 4 bytes
+                self._app.gst_widget.set_libcamera_property('awb-algo-profile-ccms', ccmCoeffs)
+                refRGB = unpack('<15B', data[428:443]) # 5 rgb values of 1 byte per component
+                self._app.gst_widget.set_libcamera_property('awb-algo-profile-ref-rgb', refRGB)
+            self._app.gst_widget.set_libcamera_property('awb-algo-enable', enable)
+
+        elif cmd == CmdID.CMD_ISPGAINSTATIC.value:
+            # retrieve values from the command
+            enable = data[4]
+            if enable:
+                values = unpack('<3I', data[8:20]) # padding byte inserted data[5:8] by the ctype structure alignment
+                self._app.gst_widget.set_libcamera_property('isp-gain-values', values)
+            self._app.gst_widget.set_libcamera_property('isp-gain-enable', enable)
+
+        elif cmd == CmdID.CMD_COLORCONVSTATIC.value:
+            # retrieve values from the command
+            enable = data[4]
+            if enable:
+                values = unpack('<9i', data[8:44]) # padding byte inserted data[5:8] by the ctype structure alignment
+                self._app.gst_widget.set_libcamera_property('ccm-values', values)
+            self._app.gst_widget.set_libcamera_property('ccm-enable', enable)
+
+        elif cmd == CmdID.CMD_STOPPREVIEW.value:
+            # With Gstreamer implementation we do not need to stop/start the preview to capture frames
+            # Simply skip the stop preview request.
+            ret = 0
+
+        elif cmd == CmdID.CMD_STARTPREVIEW.value:
+            # With Gstreamer implementation we do not need to stop/start the preview to capture frames
+            # Simply skip the start preview request.
+            ret = 0
+
+        elif cmd == CmdID.CMD_GAMMA.value:
+            # Gamma is not supported but unique gamma command is
+            # This command return an error
+            ret = 1
+
+        elif cmd == CmdID.CMD_UNIQUE_GAMMA.value:
+            # retrieve values from the command
+            enable = data[4]
+            self._app.gst_widget.set_libcamera_property('gamma-enable', enable)
+
+        elif cmd == CmdID.CMD_LUXREF.value:
+            HL_LuxRef, HL_Expo1, HL_Lum1, HL_Expo2, HL_Lum2 = unpack('<5I', data[4:24])
+            LL_LuxRef, LL_Expo1, LL_Lum1, LL_Expo2, LL_Lum2 = unpack('<5I', data[24:44])
+            CalibFactor = unpack('<1f', data[44:48])[0]
+            self._app.gst_widget.set_libcamera_property('lux-ref', (HL_LuxRef, LL_LuxRef))
+            self._app.gst_widget.set_libcamera_property('lux-ref-expo', (HL_Expo1, HL_Expo2, LL_Expo1, LL_Expo2))
+            self._app.gst_widget.set_libcamera_property('lux-ref-luma', (HL_Lum1, HL_Lum2, LL_Lum1, LL_Lum2))
+            self._app.gst_widget.set_libcamera_property('lux-ref-calib-factor', CalibFactor)
+
+        elif cmd == CmdID.CMD_HOST_OS_TYPE.value:
+            pass#don't care about host os
+
+        elif cmd == CmdID.CMD_USER_EXPOSURETARGET.value:
+            val = data[4]
+            # convert the exposure compensation enum into float value
+            if ctypes.c_int8(val).value == -4:
+                val = -2.0
+            elif ctypes.c_int8(val).value == -3:
+                val = -1.5
+            elif ctypes.c_int8(val).value == -2:
+                val = -1.0
+            elif ctypes.c_int8(val).value == -1:
+                val = -0.5
+            elif ctypes.c_int8(val).value == 0:
+                val = 0.0
+            elif ctypes.c_int8(val).value == 1:
+                val = 0.5
+            elif ctypes.c_int8(val).value == 2:
+                val = 1.0
+            elif ctypes.c_int8(val).value == 3:
+                val = 1.5
+            elif ctypes.c_int8(val).value == 4:
+                val = 2.0
+            self._app.gst_widget.set_libcamera_property('aec-algo-exposure-compensation', val)
+
+        elif cmd == CmdID.CMD_USER_WBREFMODE.value:
+            # retrieve values from the command
+            enable = data[4]
+            refColorTemp = unpack('<1I', data[8:12])[0]
+            # enable or disable awb
+            self._app.gst_widget.set_libcamera_property('awb-algo-enable', enable)
+            if not enable:
+                # implement it in the same way as n6 fw / may use AwbMode set to AwbCustom with AwbCustomColorTemperature
+                # but those controls are not implemented in gstreamer
+                refColorTemps = self._app.gst_widget.get_libcamera_property('awb-algo-profile-color-temps')
+                for (pos, c) in enumerate(refColorTemps):
+                    if c == refColorTemp:
+                        break
+                if pos == len(refColorTemps) or refColorTemp == 0:
+                    print("Unable to find profile with temp %d" % refColorTemp)
+                    ret = 1
+                else:
+                    ispGains = self._app.gst_widget.get_libcamera_property('awb-algo-profile-isp-gains')
+                    ccmCoeffs = self._app.gst_widget.get_libcamera_property('awb-algo-profile-ccms')
+                    gains = [ispGains[pos], ispGains[pos + 5], ispGains[pos + 10]]
+                    ccms = ccmCoeffs[pos * 9: pos * 9 + 9]
+                    # apply "isp-gain-enable" / "isp-gain-values" and "ccm-enable" / "ccm-values"
+                    self._app.gst_widget.set_libcamera_property('isp-gain-values', gains)
+                    self._app.gst_widget.set_libcamera_property('ccm-values', ccms)
+                    self._ref_color_set = refColorTemp
+            else:
+                self._ref_color_set = refColorTemp
+
+        elif cmd == CmdID.CMD_SENSORTESTPATTERN.value:
+            print("CMD_SENSORTESTPATTERN")
+
+        elif cmd == CmdID.CMD_SENSORDELAY.value:
+            # retrieve values from the command
+            val = unpack('<1I', data[4:8])[0]
+            self._app.gst_widget.set_libcamera_property('sensor-delay', val)
+
+        elif cmd == CmdID.CMD_METADATA_OUTPUT.value:
+            self._app.gst_widget.metadata_output = bool(data[4])
+
+        else:
+            print("Unkown set config command (" + str(cmd) + ")")
+            ret = 1
+
+        # send command anwser
+        tempo += 0.15 # tempo of minimum 0.1 seconds before sending back the command
+        time.sleep(tempo)
+        if ret:
+            tx_data = bytes([CmdOperation.CMD_OP_GET_FAILURE.value, cmd, ret])
+            self._send_data(tx_data)
+            return False
+
+        tx_data = bytes([CmdOperation.CMD_OP_GET_OK.value, cmd])
+        self._send_data(tx_data)
+        return True
+
+    def cmd_parser_getconfig(self, data):
+        """
+        get config requested
+        """
+        # Depending on the field structure used, alignement is done on a uint32 word for the enable field.
+        # For some configuration, the enable value is coded on a single byte or a uint32 word to match the
+        # structure alignment from uint8 to uint32 transition.
+        ret = 0
+        cmd = data[1]
+        if cmd == CmdID.CMD_STATREMOVAL.value:
+            # Statistic removal not supported with the IQTune desktop application.
+            # The statistic removal is managed by the entry pad of the ISP subdev using the crop property
+            # ex: media-ctl -d $media_dev --set-v4l2 "'dcmipp_main_isp':0[crop:(0,5)/1280x713]"
+            ret = 1
+
+        elif cmd == CmdID.CMD_DECIMATION.value or cmd == CmdID.CMD_USER_GETDECIMATION.value:
+            val = self._app.gst_widget.get_libcamera_property('decimation-factor')
+            read_values = pack('B', val)
+
+        elif cmd == CmdID.CMD_DEMOSAICING.value:
+            enable = self._app.gst_widget.get_libcamera_property('demosaicing-enable')
+            values = self._app.gst_widget.get_libcamera_property('demosaicing-filters')
+            read_values = pack('B', enable)
+            read_values = read_values + pack('B', self._app.sensor_bayer_pattern)
+            for val in values:
+                read_values = read_values + pack('B', val)
+
+        elif cmd == CmdID.CMD_CONTRAST.value:
+            enable = self._app.gst_widget.get_libcamera_property('contrast-enable')
+            values = self._app.gst_widget.get_libcamera_property('contrast-values')
+            read_values = pack('<I', enable)
+            for val in values:
+                read_values = read_values + pack('<I', val)
+
+        elif cmd == CmdID.CMD_STATISTICAREA.value or cmd == CmdID.CMD_USER_STATISTICAREA.value:
+            values = self._app.gst_widget.get_libcamera_property('statistic-area')
+            read_values = b''
+            for val in values:
+                read_values = read_values + pack('<I', val)
+
+        elif cmd == CmdID.CMD_SENSORGAIN.value:
+            val = self._app.gst_widget.get_libcamera_property('sensor-gain')
+            # Add 0.5 before rounding to be sure to return set value
+            read_values = pack('<I', int(val * 1000 + 0.5)) # convert from dB to mdB
+
+        elif cmd == CmdID.CMD_SENSOREXPOSURE.value:
+            val = self._app.gst_widget.get_libcamera_property('sensor-exposure')
+            read_values = pack('<I', val)
+
+        elif cmd == CmdID.CMD_BADPIXELALGO.value:
+            val = self._app.gst_widget.get_libcamera_property('badpixel-algo-threshold')
+            if val == 0:
+                # the badpixel algo is disabled
+                read_values = pack('<I', False)
+            else:
+                # the badpixel algo is enabled
+                read_values = pack('<I', True)
+            read_values = read_values + pack('<I', val)
+
+        elif cmd == CmdID.CMD_BADPIXELSTATIC.value:
+            enable = self._app.gst_widget.get_libcamera_property('badpixel-enable')
+            strength = self._app.gst_widget.get_libcamera_property('badpixel-strength')
+            count = self._app.gst_widget.get_libcamera_property('badpixel-count')
+            read_values = pack('B', enable)
+            read_values = read_values + pack('B', strength)
+            read_values = read_values + b'\x00' * 2 # padding to keep c-type structure aligned
+            read_values = read_values + pack('<I', count)
+
+        elif cmd == CmdID.CMD_BLACKLEVELSTATIC.value:
+            enable = self._app.gst_widget.get_libcamera_property('black-level-enable')
+            values = self._app.gst_widget.get_libcamera_property('black-level-values')
+            read_values = pack('B', enable)
+            for val in values:
+                read_values = read_values + pack('B', val)
+
+        elif cmd == CmdID.CMD_AECALGO.value:
+            enable = self._app.gst_widget.get_libcamera_property('aec-algo-enable')
+            expval = self._app.gst_widget.get_libcamera_property('aec-algo-exposure-compensation')
+            exptarget = self._app.gst_widget.get_libcamera_property('aec-algo-exposure-target')
+            antiflickerfreq = self._app.gst_widget.get_libcamera_property('aec-algo-antiflicker-frequency')
+            # convert float value to exposure compensation enum value
+            if expval == -2.0:
+                expval = -4
+            elif expval == -1.5:
+                expval = -3
+            elif expval == -1.0:
+                expval = -2
+            elif expval == -0.5:
+                expval = -1
+            elif expval == 0.0:
+                expval = 0
+            elif expval == 0.5:
+                expval = 1
+            elif expval == 1.0:
+                expval = 2
+            elif expval == 1.5:
+                expval = 3
+            elif expval == 2.0:
+                expval = 4
+            read_values = pack('B', enable)
+            read_values = read_values + pack('b', expval)
+            read_values = read_values + b'\x00' * 2 # padding to keep c-type structure aligned
+            read_values = read_values + pack('<I', exptarget)
+            read_values = read_values + pack('<I', antiflickerfreq)
+
+        elif cmd == CmdID.CMD_AWBALGO.value:
+            enable = self._app.gst_widget.get_libcamera_property('awb-algo-enable')
+            profileNames = self._app.gst_widget.get_libcamera_property('awb-algo-profile-names')
+            refColorTemps = self._app.gst_widget.get_libcamera_property('awb-algo-profile-color-temps')
+            ispGains = self._app.gst_widget.get_libcamera_property('awb-algo-profile-isp-gains')
+            ccmCoeffs = self._app.gst_widget.get_libcamera_property('awb-algo-profile-ccms')
+            refRGB = self._app.gst_widget.get_libcamera_property('awb-algo-profile-ref-rgb')
+            read_values = pack('B', enable)
+            for val in profileNames:
+                read_values = read_values + val.encode('utf-8') + b'\x00' * (32 - len(val)) # 32 bytes aligned
+            read_values = read_values + b'\x00' * 3 # padding to keep c-type structure aligned
+            for val in refColorTemps:
+                read_values = read_values + pack('<I', val)
+            for val in ispGains:
+                read_values = read_values + pack('<I', val)
+            for val in ccmCoeffs:
+                read_values = read_values + pack('<i', val)
+            for val in refRGB:
+                read_values = read_values + pack('<B', val)
+            # padding byte
+            read_values = read_values + b'\x00';
+
+        elif cmd == CmdID.CMD_AWBPROFILE.value:
+            currentProfileName = self._app.gst_widget.get_libcamera_property('awb-current-profile-name')
+            if currentProfileName is None:
+                    currentProfileName = ""
+            currentColorTemp = self._app.gst_widget.get_libcamera_property('awb-current-profile-color-temp')
+            read_values = currentProfileName.encode('utf-8') + b'\x00' * (32 - len(currentProfileName)) # 32 bytes aligned
+            read_values = read_values + pack('<I', currentColorTemp)
+
+        elif cmd == CmdID.CMD_ISPGAINSTATIC.value:
+            enable = self._app.gst_widget.get_libcamera_property('isp-gain-enable')
+            values = self._app.gst_widget.get_libcamera_property('isp-gain-values')
+            read_values = pack('<I', enable)
+            for val in values:
+                read_values = read_values + pack('<I', val)
+
+        elif cmd == CmdID.CMD_COLORCONVSTATIC.value:
+            enable = self._app.gst_widget.get_libcamera_property('ccm-enable')
+            values = self._app.gst_widget.get_libcamera_property('ccm-values')
+            read_values = pack('<I', enable)
+            for val in values:
+                read_values = read_values + pack('<i', val)
+
+        elif cmd == CmdID.CMD_STATISTICUP.value:
+            self._store_original_statistic_profile()
+            # Set statistic profile to get full stats:
+            # 0 = Full stats (histogram and average, up and down)
+            # 1 = average up stats
+            # 2 = average down stats
+            self._app.gst_widget.set_libcamera_property('statistic-profile', 0)
+            # Wait for full stats to be available
+            time.sleep(0.5)
+            avg_values = self._app.gst_widget.get_libcamera_property('statistic-get-average-up')
+            bin_values = self._app.gst_widget.get_libcamera_property('statistic-get-histogram-up')
+            read_values = b''
+            for val in avg_values:
+                read_values = read_values + pack('B', val)
+            for val in bin_values:
+                read_values = read_values + pack('<I', val)
+
+        elif cmd == CmdID.CMD_STATISTICDOWN.value:
+            self._store_original_statistic_profile()
+            # Set statistic profile to get full stats:
+            # 0 = Full stats (histogram and average, up and down)
+            # 1 = average up stats
+            # 2 = average down stats
+            self._app.gst_widget.set_libcamera_property('statistic-profile', 0)
+            # Wait for full stats to be available
+            time.sleep(0.5)
+            avg_values = self._app.gst_widget.get_libcamera_property('statistic-get-average-down')
+            bin_values = self._app.gst_widget.get_libcamera_property('statistic-get-histogram-down')
+            read_values = b''
+            for val in avg_values:
+                read_values = read_values + pack('B', val)
+            for val in bin_values:
+                read_values = read_values + pack('<I', val)
+            # revert back the statistic profile in some seconds
+            threading.Thread(target=self._restore_statistic_profile).start()
+
+
+        elif cmd == CmdID.CMD_DUMP_PREVIEW_FRAME.value:
+            # Wait parameter are applied before asking for a preview dump
+            time.sleep(0.2)
+            self._app.gst_widget.dump_preview = True
+            # Wait while dump is really performed
+            while self._app.gst_widget.dump_preview:
+                time.sleep(0.01)
+
+            # if dump size if 0 then return error
+            if self._app.gst_widget.dump_size == 0:
+                ret = 1
+
+            # Fill read_values variable with the metadata frame information concatenate with the buffer itself
+            read_values = b''
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_size)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_width)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_height)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_pitch)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_format)
+            read_values = read_values + b'DUMP DATA[' + self._app.gst_widget.dump_buffer + b'DUMP DATA]'
+
+        elif cmd == CmdID.CMD_DUMP_ISP_FRAME.value:
+            self._app.gst_widget.dump_rgb = True
+            # Wait while dump is really performed
+            while self._app.gst_widget.dump_rgb:
+                time.sleep(0.01)
+
+            # if dump size if 0 then return error
+            if self._app.gst_widget.dump_size == 0:
+                ret = 1
+
+            # Fill read_values variable with the metadata frame information concatenate with the buffer itself
+            read_values = b''
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_size)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_width)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_height)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_pitch)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_format)
+            read_values = read_values + b'DUMP DATA[' + self._app.gst_widget.dump_buffer + b'DUMP DATA]'
+
+        elif cmd == CmdID.CMD_DUMP_RAW_FRAME.value:
+            self._app.gst_widget.dump_raw = True
+            # Wait while dump is really performed
+            while self._app.gst_widget.dump_raw:
+                time.sleep(0.01)
+
+            # if dump size if 0 then return error
+            if self._app.gst_widget.dump_size == 0:
+                ret = 1
+
+            # Fill read_values variable with the metadata frame information concatenate with the buffer itself
+            read_values = b''
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_size)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_width)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_height)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_pitch)
+            read_values = read_values + pack('<I', self._app.gst_widget.dump_format)
+            read_values = read_values + b'DUMP DATA[' + self._app.gst_widget.dump_buffer + b'DUMP DATA]'
+
+        elif cmd == CmdID.CMD_DCMIPPVERSION.value:
+            values = self._app.gst_widget.get_libcamera_property('hw-revision')
+            read_values = b''
+            for val in values:
+                read_values = read_values + pack('<I', val)
+
+        elif cmd == CmdID.CMD_GAMMA.value:
+            # Gamma is not supported but unique gamma command is
+            # This command return an error
+            ret = 1
+
+        elif cmd == CmdID.CMD_UNIQUE_GAMMA.value:
+            enable = self._app.gst_widget.get_libcamera_property('gamma-enable')
+            read_values = pack('<I', enable)
+
+        elif cmd == CmdID.CMD_LUXREF.value:
+            HL_LuxRef, LL_LuxRef = self._app.gst_widget.get_libcamera_property('lux-ref')
+            HL_Expo1, HL_Expo2, LL_Expo1, LL_Expo2 = self._app.gst_widget.get_libcamera_property('lux-ref-expo')
+            HL_Lum1, HL_Lum2, LL_Lum1, LL_Lum2 = self._app.gst_widget.get_libcamera_property('lux-ref-luma')
+            CalibFactor = self._app.gst_widget.get_libcamera_property('lux-ref-calib-factor')
+            read_values = b''
+            for val in (HL_LuxRef, HL_Expo1, HL_Lum1, HL_Expo2, HL_Lum2):
+                read_values = read_values + pack('<I', val)
+            for val in (LL_LuxRef, LL_Expo1, LL_Lum1, LL_Expo2, LL_Lum2):
+                read_values = read_values + pack('<I', val)
+            read_values = read_values + pack('<f', CalibFactor)
+
+        elif cmd == CmdID.CMD_AWBCOLORTEMP.value:
+            enable = self._app.gst_widget.get_libcamera_property('awb-algo-enable')
+            if enable:
+                val = self._app.gst_widget.get_libcamera_property('awb-current-profile-color-temp')
+            else:
+                val = 0
+            read_values = pack('<I', val)
+
+        elif cmd == CmdID.CMD_USER_EXPOSURETARGET.value:
+            expval = self._app.gst_widget.get_libcamera_property('aec-algo-exposure-compensation')
+            exptarget = self._app.gst_widget.get_libcamera_property('aec-algo-exposure-target')
+            # convert float value to exposure compensation enum value
+            if expval == -2.0:
+                expval = -4
+            elif expval == -1.5:
+                expval = -3
+            elif expval == -1.0:
+                expval = -2
+            elif expval == -0.5:
+                expval = -1
+            elif expval == 0.0:
+                expval = 0
+            elif expval == 0.5:
+                expval = 1
+            elif expval == 1.0:
+                expval = 2
+            elif expval == 1.5:
+                expval = 3
+            elif expval == 2.0:
+                expval = 4
+            read_values = b''
+            read_values = pack('<b', expval)
+            read_values = read_values + b'\x00' * 3 #keep struct align
+            read_values = read_values + pack('<I', exptarget)
+
+        elif cmd == CmdID.CMD_USER_LISTWBREFMODES.value:
+            refColorTemps = self._app.gst_widget.get_libcamera_property('awb-algo-profile-color-temps')
+            read_values = b''
+            for val in refColorTemps:
+                read_values = read_values + pack('<I', val)
+
+        elif cmd == CmdID.CMD_USER_WBREFMODE.value:
+            enable = self._app.gst_widget.get_libcamera_property('awb-algo-enable')
+            read_values = pack('<B', enable)
+            read_values = read_values + b'\x00' * 3 # padding to keep c-type structure aligned
+            read_values = read_values + pack('<I', self._ref_color_set)
+
+        elif cmd == CmdID.CMD_SENSORINFO.value:
+            read_values = b''
+            read_values = read_values + self._app.sensor_name.encode('utf-8') + b'\x00' * (32 - len(self._app.sensor_name)) # 32 bytes aligned
+            read_values = read_values + pack('B', self._app.sensor_bayer_pattern)
+            read_values = read_values + pack('B', self._app.sensor_pixel_depth)
+            read_values = read_values + b'\x00' * 2 # padding to keep c-type structure aligned
+            read_values = read_values + pack('<I', self._app.sensor_width)
+            read_values = read_values + pack('<I', self._app.sensor_height)
+            read_values = read_values + pack('<I', self._app.sensor_gain_min)
+            read_values = read_values + pack('<I', self._app.sensor_gain_max)
+            read_values = read_values + pack('<I', self._app.sensor_expo_min)
+            read_values = read_values + pack('<I', self._app.sensor_expo_max)
+
+        elif cmd == CmdID.CMD_SENSORTESTPATTERN.value:
+            print("CMD_SENSORTESTPATTERN")
+
+        elif cmd == CmdID.CMD_SENSORDELAY.value:
+            val = self._app.gst_widget.get_libcamera_property('sensor-delay')
+            read_values = pack('<I', val)
+
+        elif cmd == CmdID.CMD_SENSORDELAYMEASURE.value:
+            # disable AWB to avoid interference
+            prev_awb_enable = self._app.gst_widget.get_libcamera_property('awb-algo-enable')
+            self._app.gst_widget.set_libcamera_property('awb-algo-enable', False)
+
+            # trigger the start of the measure
+            self._app.gst_widget.set_libcamera_property('do-sensor-delay-measure', True)
+
+            # wait until the reported mesaure is available (i.e. not -1)
+            val = -1
+            max_attempt = 100
+            while val == -1 and max_attempt:
+                time.sleep(0.1)
+                max_attempt -= 1
+                val = self._app.gst_widget.get_libcamera_property('sensor-delay-measure')
+
+            read_values = pack('<I', val if val > 0 else 0)
+
+            # restore AWB
+            self._app.gst_widget.set_libcamera_property('awb-algo-enable', prev_awb_enable)
+
+        elif cmd == CmdID.CMD_FIRMWARE_CONFIG.value:
+            read_values = b''
+            # Number of supported fields (RGBOrder, HasStatRemoval, etc..).
+            nb_field = 10
+            read_values = read_values + pack('<I', nb_field)
+            # 01 - RGBOrder (RGB = 0x00 (From DV6) -  BGR = 0x01 (DV5))
+            rgb_order = 0x01 if self._app.ostl_version == "5.0" else 0x00
+            read_values = read_values + pack('<I', rgb_order)
+            # 02 - HasStatRemoval. Not supported.
+            read_values = read_values + pack('<I', False)
+            # 03 - HasGamma. Not supported.
+            read_values = read_values + pack('<I', False)
+            # 04 - HasAntiFlicker. Not supported for the time being.
+            read_values = read_values + pack('<I', True)
+            # 05 - DeviceId (N6=0x00  -  MP25/23=0x01 - MP21=0x2 ...   0xFFFFFF = unknown)
+            if self._app.device.startswith("STM32MP25") or self._app.device.startswith("STM32MP23"):
+                device = 0x01
+            elif self._app.device.startswith("STM32MP21"):
+                device = 0x02
+            else:
+                device = 0xFFFFFFFF
+            read_values = read_values + pack('<I', device)
+            # 06 - UID
+            read_values = read_values + self._app.uid[0] + self._app.uid[1] + self._app.uid[2]
+            # 07 - HasSensorDelay.
+            read_values = read_values + pack('<I', True)
+            # 08 - HasUniqueGamma.
+            read_values = read_values + pack('<I', True)
+            # 09 - HasUVC.
+            # UVC is supported only if uvc_video_dev exists
+            if self._app.gst_widget.uvc_video_dev is not None:
+                read_values = read_values + pack('<I', True)
+            else:
+                read_values = read_values + pack('<I', False)
+            # 0A - HasSTAlgo.
+            read_values = read_values + pack('<I', True)
+
+        elif cmd == CmdID.CMD_USER_LUX.value:
+            lux_estimate = self._app.gst_widget.get_libcamera_property('lux-estimate')
+            read_values = pack('<I', int(lux_estimate))
+
+        elif cmd == CmdID.CMD_FRAMEDATA.value:
+            expo_us = self._app.gst_widget.get_libcamera_property('sensor-exposure')
+            gain_db = self._app.gst_widget.get_libcamera_property('sensor-gain')
+            lux_estimate = self._app.gst_widget.get_libcamera_property('lux-estimate')
+            read_values = b''
+            read_values = read_values + pack('<I', expo_us)
+            read_values = read_values + pack('<I', int(gain_db * 1000))
+            read_values = read_values + pack('<I', int(lux_estimate))
+            if self._app.gst_widget.get_libcamera_property('awb-algo-enable'):
+                colortemp = self._app.gst_widget.get_libcamera_property('awb-current-profile-color-temp')
+            else:
+                colortemp = 0
+            read_values = read_values + pack('<I', colortemp)
+
+        elif cmd == CmdID.CMD_METADATA_OUTPUT.value:
+            read_values = pack('<I', self._app.gst_widget.metadata_output)
+
+        else:
+            print("Unkown get config command (" + str(cmd) + ")")
+            ret = 1
+
+        # send command anwser
+        if ret:
+            tx_data = bytes([CmdOperation.CMD_OP_GET_FAILURE.value, cmd, ret])
+            self._send_data(tx_data)
+            return False
+
+        tx_data = bytes([CmdOperation.CMD_OP_GET_OK.value, cmd, 0, 0]) + read_values
+        self._send_data(tx_data)
+        return True
+
+    def cmd_parser_process_command(self, data):
+        """
+        parse the received data
+        """
+        operation = data[0]
+        if operation == CmdOperation.CMD_OP_SET.value:
+            self.cmd_parser_setconfig(data)
+        elif operation == CmdOperation.CMD_OP_GET.value:
+            self.cmd_parser_getconfig(data)
+        else:
+            return False
+
+        return True
+
+    def loop(self):
+        """
+        loop function call as a gtk idle function to check com port reception
+        regularly
+        """
+        if not self._cleanup:
+            data = self._get_data()
+            if data:
+                if not self.cmd_parser_process_command(data):
+                    print("Error while processing the received command")
+
+        return True

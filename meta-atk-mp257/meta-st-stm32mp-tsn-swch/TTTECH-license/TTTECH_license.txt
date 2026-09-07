@@ -1,0 +1,12 @@
+TTTech Computertechnik AG DE-IP Package and Reference Software
+Copyright© 2018 TTTech Computertechnik AG.
+
+ALL RIGHTS RESERVED.
+Usage of this software, including source code, netlists, documentation, is subject to restrictions. The software is permitted to be used solely with ST Products and the software may not be reverse-engineered. 
+
+All trademarks used are the property of their respective owners.
+
+TTTech Computertechnik AG and its affiliates do not assume any liability arising out of the application or use of any product described or shown herein. TTTech Computertechnik AG and its affiliates reserve the right to make changes, at any time, in order to improve reliability, function or design.
+
+Contact:
+TTTech Computertechnik AG, Schoenbrunner Strasse 7, 1040 Vienna, Austria

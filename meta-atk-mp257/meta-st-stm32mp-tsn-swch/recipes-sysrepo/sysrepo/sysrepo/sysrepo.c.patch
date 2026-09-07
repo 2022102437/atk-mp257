@@ -1,0 +1,29 @@
+diff --git a/src/sysrepo.c b/src/sysrepo.c
+index 98db0f6..a3b4a8e 100644
+--- a/src/sysrepo.c
++++ b/src/sysrepo.c
+@@ -4679,4 +4679,24 @@ error1:
+         *subscription = NULL;
+     }
+     return sr_api_ret(session, err_info);
++}
++
++API int
++sr_path_check_startup_done_file(const char *mod_name, char **path)
++{
++    int ret;
++
++    if (SR_STARTUP_PATH[0]) {
++        ret = asprintf(path, "%s/%s.startup.done", SR_STARTUP_PATH, mod_name);
++    } else {
++        ret = asprintf(path, "%s/data/%s.startup.done", sr_get_repo_path(), mod_name);
++    }
++
++    if (ret == -1) {
++        *path = NULL;
++    }
++    else
++       ret = sr_file_exists(*path);
++
++    return ret;
+ }

@@ -1,0 +1,5 @@
+[Match]
+Name=sw0p*
+
+[Network]
+Bridge=br0

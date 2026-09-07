@@ -1,0 +1,10 @@
+[Unit]
+Description=netopeer2-server
+After=network.target
+
+[Service]
+ExecStart=/usr/share/netopeer2-server/netopeer2-server-service start
+ExecStop=/usr/share/netopeer2-server/netopeer2-server-service stop
+
+[Install]
+WantedBy=multi-user.target

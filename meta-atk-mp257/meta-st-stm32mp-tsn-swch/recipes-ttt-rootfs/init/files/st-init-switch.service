@@ -1,0 +1,11 @@
+[Unit]
+Description=ST INIT edgex service
+After=network.target systemd-networkd.service
+
+[Service]
+Type=forking
+ExecStart=/usr/sbin/ttt-ip-common.sh start
+ExecStop=/usr/sbin/ttt-ip-common.sh stop
+
+[Install]
+WantedBy=multi-user.target

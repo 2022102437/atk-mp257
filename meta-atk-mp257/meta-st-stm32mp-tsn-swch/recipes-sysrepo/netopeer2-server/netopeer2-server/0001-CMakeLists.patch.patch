@@ -1,0 +1,35 @@
+From ba7caba64be835ccc6186148d9fa0d88c1c69ad2 Mon Sep 17 00:00:00 2001
+From: Christophe Priouzeau <christophe.priouzeau@foss.st.com>
+Date: Thu, 23 Jun 2022 09:14:08 +0200
+Subject: [PATCH] CMakeLists.patch
+
+Signed-off-by: Christophe Priouzeau <christophe.priouzeau@foss.st.com>
+---
+ CMakeLists.txt | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index be6700b..6a80246 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -48,7 +48,7 @@ else()
+ endif()
+ option(BUILD_CLI "Build and install neotpeer2-cli" ON)
+ option(ENABLE_URL "Enable URL capability" ON)
+-set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
++set(THREAD_COUNT 1 CACHE STRING "Number of threads accepting new sessions and handling requests")
+ set(NACM_RECOVERY_UID 0 CACHE STRING "NACM recovery session UID that has unrestricted access")
+ set(POLL_IO_TIMEOUT 10 CACHE STRING "Timeout in milliseconds of polling sessions for new data. It is also used for synchronization of low level IO such as sending a reply while a notification is being sent")
+ set(YANG_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/yang/modules/netopeer2" CACHE STRING "Directory where to copy the YANG modules to")
+@@ -216,7 +216,7 @@ set(SCRIPT_DIR "${PROJECT_SOURCE_DIR}/scripts/")
+ add_subdirectory(packages)
+ 
+ # install the module files
+-install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR})
++#install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR})
+ 
+ # install the binary, required modules, and default configuration
+ install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
+-- 
+2.25.1
+

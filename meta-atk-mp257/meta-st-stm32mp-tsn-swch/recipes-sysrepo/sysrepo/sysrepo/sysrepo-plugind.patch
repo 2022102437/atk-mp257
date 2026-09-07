@@ -1,0 +1,43 @@
+diff --git a/src/executables/sysrepo-plugind.c b/src/executables/sysrepo-plugind.c
+index f3b83d36..df027222 100644
+--- a/src/executables/sysrepo-plugind.c
++++ b/src/executables/sysrepo-plugind.c
+@@ -51,6 +51,9 @@ pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+ /** The name of the configuration module for the sysrepo-plugind program itself. */
+ #define SRPD_MODULE_NAME "sysrepo-plugind"
+ 
++/** State file to indicate all plugins have been initialized */
++#define SRPD_PLUGINS_READY_FILE "/run/" SRPD_MODULE_NAME ".ready"
++
+ struct srpd_plugin_s {
+     void *handle;
+     srp_init_cb_t init_cb;
+@@ -441,6 +444,7 @@ main(int argc, char **argv)
+     sr_session_ctx_t *sess = NULL;
+     sr_log_level_t log_level = SR_LL_ERR;
+     int plugin_count = 0, i, r, rc = EXIT_FAILURE, opt, debug = 0;
++    int ready_fd = -1;
+     struct option options[] = {
+         {"help",      no_argument,       NULL, 'h'},
+         {"version",   no_argument,       NULL, 'V'},
+@@ -530,6 +534,12 @@ main(int argc, char **argv)
+         }
+     }
+ 
++    /* signal readyness */
++    if ((ready_fd = open(SRPD_PLUGINS_READY_FILE,
++                         O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC,
++                         S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH)) >= 0)
++        close(ready_fd);
++
+     /* wait for a terminating signal */
+     pthread_mutex_lock(&lock);
+     while (!loop_finish) {
+@@ -546,6 +556,7 @@ main(int argc, char **argv)
+     rc = EXIT_SUCCESS;
+ 
+ cleanup:
++    unlink(SRPD_PLUGINS_READY_FILE);
+     for (i = 0; i < plugin_count; ++i) {
+         dlclose(plugins[i].handle);
+         free(plugins[i].plugin_name);
