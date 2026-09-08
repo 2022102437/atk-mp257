@@ -23,6 +23,14 @@ ALIENTEK_DTS_FILES = " \
 # Base board devicetree name built by default
 ALIENTEK_BASE_DTB = "stm32mp257d-atk-ddr-2GB"
 
+# Display variants are kernel-only devicetrees: the rgb/mipi/lvds variants
+# include the base board dts and enable the panel/LTDC. Build and deploy the
+# RGB one alongside the base so that U-Boot extlinux can load it
+# (UBOOT_EXTLINUX_FDT selects it). Boot chain (TF-A/OP-TEE/U-Boot) keeps the
+# base board dtb which is the one staged in external-dt.
+ALIENTEK_DISPLAY_DTB:stm32mp257-atk = "stm32mp257d-atk-ddr-2GB-rgb.dtb"
+KERNEL_DEVICETREE:append:stm32mp257-atk = " ${KERNEL_SUB_PATH}${ALIENTEK_DISPLAY_DTB}"
+
 SRC_URI:append:stm32mp257-atk = " ${@' '.join('file://%s' % f for f in '${ALIENTEK_DTS_FILES}'.split())}"
 SRC_URI:append:stm32mp257-atk = " file://0001-motorcomm-yt8531-xtal-init.patch"
 
